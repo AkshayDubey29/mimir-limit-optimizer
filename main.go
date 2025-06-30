@@ -22,7 +22,7 @@ import (
 var (
 	scheme   = runtime.NewScheme()
 	setupLog = ctrl.Log.WithName("setup")
-	Version  = "1.1.0" // This will be updated automatically by the release workflow
+	Version  = "1.2.0" // This will be updated automatically by the release workflow
 )
 
 func init() {
