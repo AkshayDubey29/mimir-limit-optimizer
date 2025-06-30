@@ -62,7 +62,7 @@ func NewConfigMapPatcher(c client.Client, kubeClient kubernetes.Interface, cfg *
 	}
 }
 
-// ApplyLimits applies the calculated limits to the Mimir runtime overrides ConfigMap
+// ApplyLimits applies the calculated limits to the Mimir runtime overrides ConfigMap with retry logic for conflict resolution
 func (p *ConfigMapPatcher) ApplyLimits(ctx context.Context, limits map[string]*analyzer.TenantLimits) error {
 	startTime := time.Now()
 	defer func() {
@@ -70,33 +70,63 @@ func (p *ConfigMapPatcher) ApplyLimits(ctx context.Context, limits map[string]*a
 		metrics.ConfigMapMetricsInstance.ObserveConfigMapUpdateDuration("success", duration)
 	}()
 
-	// Get current ConfigMap
-	currentConfigMap, err := p.getCurrentConfigMap(ctx)
-	if err != nil {
-		metrics.ConfigMapMetricsInstance.IncConfigMapUpdates("error")
-		return fmt.Errorf("failed to get current ConfigMap: %w", err)
+	// Retry logic with exponential backoff for conflict resolution
+	maxRetries := 5
+	baseDelay := 150 * time.Millisecond
+	var currentOverrides, updatedOverrides map[string]interface{}
+
+	for attempt := 0; attempt < maxRetries; attempt++ {
+		// Get current ConfigMap (fresh read each time)
+		currentConfigMap, err := p.getCurrentConfigMap(ctx)
+		if err != nil {
+			metrics.ConfigMapMetricsInstance.IncConfigMapUpdates("error")
+			return fmt.Errorf("failed to get current ConfigMap: %w", err)
+		}
+
+		// Create backup on first attempt only
+		if attempt == 0 {
+			p.createBackup(currentConfigMap)
+		}
+
+		// Parse current overrides
+		currentOverrides, err = p.parseOverrides(currentConfigMap)
+		if err != nil {
+			metrics.ConfigMapMetricsInstance.IncConfigMapUpdates("error")
+			return fmt.Errorf("failed to parse current overrides: %w", err)
+		}
+
+		// Apply new limits
+		updatedOverrides = p.applyLimitsToOverrides(currentOverrides, limits)
+
+		// Try to update ConfigMap
+		if err := p.updateConfigMap(ctx, currentConfigMap, updatedOverrides); err != nil {
+			// Check if it's a conflict error
+			if apierrors.IsConflict(err) {
+				if attempt < maxRetries-1 {
+					// Wait with exponential backoff before retrying
+					delay := time.Duration(1<<attempt) * baseDelay
+					p.log.V(1).Info("runtime overrides ConfigMap conflict, retrying",
+						"attempt", attempt+1,
+						"delay", delay,
+						"configmap", p.config.Mimir.ConfigMapName,
+						"tenants", len(limits))
+					time.Sleep(delay)
+					continue
+				}
+				// Max retries exceeded
+				metrics.ConfigMapMetricsInstance.IncConfigMapUpdates("error")
+				return fmt.Errorf("failed to update runtime overrides ConfigMap after %d retries due to conflicts: %w", maxRetries, err)
+			}
+			// Non-conflict error, return immediately
+			metrics.ConfigMapMetricsInstance.IncConfigMapUpdates("error")
+			return fmt.Errorf("failed to update ConfigMap: %w", err)
+		}
+
+		// Success - break out of retry loop
+		break
 	}
 
-	// Create backup
-	p.createBackup(currentConfigMap)
-
-	// Parse current overrides
-	currentOverrides, err := p.parseOverrides(currentConfigMap)
-	if err != nil {
-		metrics.ConfigMapMetricsInstance.IncConfigMapUpdates("error")
-		return fmt.Errorf("failed to parse current overrides: %w", err)
-	}
-
-	// Apply new limits
-	updatedOverrides := p.applyLimitsToOverrides(currentOverrides, limits)
-
-	// Update ConfigMap
-	if err := p.updateConfigMap(ctx, currentConfigMap, updatedOverrides); err != nil {
-		metrics.ConfigMapMetricsInstance.IncConfigMapUpdates("error")
-		return fmt.Errorf("failed to update ConfigMap: %w", err)
-	}
-
-	// Log changes to audit trail
+	// Log changes to audit trail (using the final successful values)
 	p.logChanges(currentOverrides, updatedOverrides, limits)
 
 	// Trigger rollout if configured (optional - runtime overrides work without restarts)
@@ -165,7 +195,7 @@ func (p *ConfigMapPatcher) PreviewLimits(ctx context.Context, limits map[string]
 	}, nil
 }
 
-// RollbackChanges rolls back to the previous configuration
+// RollbackChanges rolls back to the previous configuration with retry logic for conflict resolution
 func (p *ConfigMapPatcher) RollbackChanges(ctx context.Context) error {
 	if p.lastBackup == nil {
 		return fmt.Errorf("no backup available for rollback")
@@ -177,18 +207,44 @@ func (p *ConfigMapPatcher) RollbackChanges(ctx context.Context) error {
 		metrics.ConfigMapMetricsInstance.ObserveConfigMapUpdateDuration("rollback", duration)
 	}()
 
-	// Get current ConfigMap
-	currentConfigMap, err := p.getCurrentConfigMap(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to get current ConfigMap for rollback: %w", err)
-	}
+	// Retry logic with exponential backoff for conflict resolution
+	maxRetries := 5
+	baseDelay := 150 * time.Millisecond
 
-	// Restore data from backup
-	currentConfigMap.Data = p.lastBackup.Data
-	
-	if err := p.client.Update(ctx, currentConfigMap); err != nil {
-		metrics.ConfigMapMetricsInstance.IncConfigMapUpdates("rollback-error")
-		return fmt.Errorf("failed to rollback ConfigMap: %w", err)
+	for attempt := 0; attempt < maxRetries; attempt++ {
+		// Get current ConfigMap (fresh read each time)
+		currentConfigMap, err := p.getCurrentConfigMap(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to get current ConfigMap for rollback: %w", err)
+		}
+
+		// Restore data from backup
+		currentConfigMap.Data = p.lastBackup.Data
+		
+		if err := p.client.Update(ctx, currentConfigMap); err != nil {
+			// Check if it's a conflict error
+			if apierrors.IsConflict(err) {
+				if attempt < maxRetries-1 {
+					// Wait with exponential backoff before retrying
+					delay := time.Duration(1<<attempt) * baseDelay
+					p.log.V(1).Info("rollback ConfigMap conflict, retrying",
+						"attempt", attempt+1,
+						"delay", delay,
+						"configmap", p.config.Mimir.ConfigMapName)
+					time.Sleep(delay)
+					continue
+				}
+				// Max retries exceeded
+				metrics.ConfigMapMetricsInstance.IncConfigMapUpdates("rollback-error")
+				return fmt.Errorf("failed to rollback ConfigMap after %d retries due to conflicts: %w", maxRetries, err)
+			}
+			// Non-conflict error, return immediately
+			metrics.ConfigMapMetricsInstance.IncConfigMapUpdates("rollback-error")
+			return fmt.Errorf("failed to rollback ConfigMap: %w", err)
+		}
+
+		// Success - break out of retry loop
+		break
 	}
 
 	// Log rollback to audit trail
@@ -416,23 +472,48 @@ func (p *ConfigMapPatcher) triggerRollout(ctx context.Context) error {
 }
 
 func (p *ConfigMapPatcher) restartDeployment(ctx context.Context, deploymentName string) error {
-	// Get the deployment
-	deployment, err := p.kubeClient.AppsV1().Deployments(p.config.Mimir.Namespace).Get(ctx, deploymentName, metav1.GetOptions{})
-	if err != nil {
-		return fmt.Errorf("failed to get deployment %s: %w", deploymentName, err)
-	}
+	// Retry logic with exponential backoff for conflict resolution
+	maxRetries := 3
+	baseDelay := 100 * time.Millisecond
 
-	// Add restart annotation
-	if deployment.Spec.Template.Annotations == nil {
-		deployment.Spec.Template.Annotations = make(map[string]string)
-	}
-	// Use Unix timestamp for annotations as well to ensure consistency
-	deployment.Spec.Template.Annotations["mimir-limit-optimizer/restarted-at"] = strconv.FormatInt(time.Now().Unix(), 10)
+	for attempt := 0; attempt < maxRetries; attempt++ {
+		// Get the deployment (fresh read each time)
+		deployment, err := p.kubeClient.AppsV1().Deployments(p.config.Mimir.Namespace).Get(ctx, deploymentName, metav1.GetOptions{})
+		if err != nil {
+			return fmt.Errorf("failed to get deployment %s: %w", deploymentName, err)
+		}
 
-	// Update deployment
-	_, err = p.kubeClient.AppsV1().Deployments(p.config.Mimir.Namespace).Update(ctx, deployment, metav1.UpdateOptions{})
-	if err != nil {
-		return fmt.Errorf("failed to update deployment %s: %w", deploymentName, err)
+		// Add restart annotation
+		if deployment.Spec.Template.Annotations == nil {
+			deployment.Spec.Template.Annotations = make(map[string]string)
+		}
+		// Use Unix timestamp for annotations as well to ensure consistency
+		deployment.Spec.Template.Annotations["mimir-limit-optimizer/restarted-at"] = strconv.FormatInt(time.Now().Unix(), 10)
+
+		// Update deployment
+		_, err = p.kubeClient.AppsV1().Deployments(p.config.Mimir.Namespace).Update(ctx, deployment, metav1.UpdateOptions{})
+		if err != nil {
+			// Check if it's a conflict error (using apierrors works for all K8s API errors)
+			if apierrors.IsConflict(err) {
+				if attempt < maxRetries-1 {
+					// Wait with exponential backoff before retrying
+					delay := time.Duration(1<<attempt) * baseDelay
+					p.log.V(1).Info("deployment update conflict, retrying",
+						"attempt", attempt+1,
+						"delay", delay,
+						"deployment", deploymentName)
+					time.Sleep(delay)
+					continue
+				}
+				// Max retries exceeded
+				return fmt.Errorf("failed to update deployment %s after %d retries due to conflicts: %w", deploymentName, maxRetries, err)
+			}
+			// Non-conflict error, return immediately
+			return fmt.Errorf("failed to update deployment %s: %w", deploymentName, err)
+		}
+
+		// Success - break out of retry loop
+		break
 	}
 
 	p.log.Info("triggered rollout for component", "component", deploymentName)
