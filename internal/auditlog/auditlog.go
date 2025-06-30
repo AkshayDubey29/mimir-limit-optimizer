@@ -14,7 +14,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/tapasyadubey/mimir-limit-optimizer/internal/config"
+	"github.com/AkshayDubey29/mimir-limit-optimizer/internal/config"
 )
 
 // AuditEntry represents a single audit log entry

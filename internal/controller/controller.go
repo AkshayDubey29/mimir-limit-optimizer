@@ -10,17 +10,15 @@ import (
 	"k8s.io/client-go/kubernetes"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	"github.com/tapasyadubey/mimir-limit-optimizer/internal/analyzer"
-	"github.com/tapasyadubey/mimir-limit-optimizer/internal/auditlog"
-	"github.com/tapasyadubey/mimir-limit-optimizer/internal/circuitbreaker"
-	"github.com/tapasyadubey/mimir-limit-optimizer/internal/collector"
-	"github.com/tapasyadubey/mimir-limit-optimizer/internal/config"
-	"github.com/tapasyadubey/mimir-limit-optimizer/internal/costcontrol"
-	"github.com/tapasyadubey/mimir-limit-optimizer/internal/discovery"
-	"github.com/tapasyadubey/mimir-limit-optimizer/internal/metrics"
-	"github.com/tapasyadubey/mimir-limit-optimizer/internal/patcher"
+	"github.com/AkshayDubey29/mimir-limit-optimizer/internal/analyzer"
+	"github.com/AkshayDubey29/mimir-limit-optimizer/internal/auditlog"
+	"github.com/AkshayDubey29/mimir-limit-optimizer/internal/circuitbreaker"
+	"github.com/AkshayDubey29/mimir-limit-optimizer/internal/collector"
+	"github.com/AkshayDubey29/mimir-limit-optimizer/internal/config"
+	"github.com/AkshayDubey29/mimir-limit-optimizer/internal/costcontrol"
+	"github.com/AkshayDubey29/mimir-limit-optimizer/internal/metrics"
+	"github.com/AkshayDubey29/mimir-limit-optimizer/internal/patcher"
 )
 
 // MimirLimitController orchestrates the complete limit optimization workflow

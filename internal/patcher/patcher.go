@@ -15,10 +15,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 
-	"github.com/tapasyadubey/mimir-limit-optimizer/internal/analyzer"
-	"github.com/tapasyadubey/mimir-limit-optimizer/internal/auditlog"
-	"github.com/tapasyadubey/mimir-limit-optimizer/internal/config"
-	"github.com/tapasyadubey/mimir-limit-optimizer/internal/metrics"
+	"github.com/AkshayDubey29/mimir-limit-optimizer/internal/analyzer"
+	"github.com/AkshayDubey29/mimir-limit-optimizer/internal/auditlog"
+	"github.com/AkshayDubey29/mimir-limit-optimizer/internal/config"
+	"github.com/AkshayDubey29/mimir-limit-optimizer/internal/metrics"
 )
 
 // Patcher interface defines methods for patching configurations

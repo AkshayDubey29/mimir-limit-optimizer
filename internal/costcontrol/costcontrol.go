@@ -8,10 +8,9 @@ import (
 
 	"github.com/go-logr/logr"
 
-	"github.com/tapasyadubey/mimir-limit-optimizer/internal/analyzer"
-	"github.com/tapasyadubey/mimir-limit-optimizer/internal/collector"
-	"github.com/tapasyadubey/mimir-limit-optimizer/internal/config"
-	"github.com/tapasyadubey/mimir-limit-optimizer/internal/metrics"
+	"github.com/AkshayDubey29/mimir-limit-optimizer/internal/analyzer"
+	"github.com/AkshayDubey29/mimir-limit-optimizer/internal/collector"
+	"github.com/AkshayDubey29/mimir-limit-optimizer/internal/config"
 )
 
 // CostController manages cost control and budget enforcement
@@ -351,7 +350,7 @@ func (cc *CostController) sumMetricValues(data []collector.MetricData) float64 {
 
 func (cc *CostController) updateCostMetrics(tenant string, costData *TenantCostData) {
 	// Update Prometheus metrics with cost data
-	// These would be new metrics added to the metrics package
+	// TODO: Implement metrics updates when metrics package is enhanced
 }
 
 // PredictFutureCosts predicts future costs based on trends

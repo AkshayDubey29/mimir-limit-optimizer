@@ -4,19 +4,17 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"net/url"
 	"strings"
 	"time"
 
 	"github.com/go-logr/logr"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
-	"github.com/prometheus/common/model"
 	"k8s.io/client-go/kubernetes"
 
-	"github.com/tapasyadubey/mimir-limit-optimizer/internal/config"
-	"github.com/tapasyadubey/mimir-limit-optimizer/internal/discovery"
-	"github.com/tapasyadubey/mimir-limit-optimizer/internal/metrics"
+	"github.com/AkshayDubey29/mimir-limit-optimizer/internal/config"
+	"github.com/AkshayDubey29/mimir-limit-optimizer/internal/discovery"
+	"github.com/AkshayDubey29/mimir-limit-optimizer/internal/metrics"
 )
 
 // MetricData represents collected metric data for a tenant
@@ -143,7 +141,7 @@ func (c *MimirCollector) collectFromSource(ctx context.Context, source string) (
 	
 	// Parse metrics
 	parser := expfmt.TextParser{}
-	metricFamilies, err := parser.TextToMetricfamilies(resp.Body)
+	metricFamilies, err := parser.TextToMetricFamilies(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse metrics: %w", err)
 	}

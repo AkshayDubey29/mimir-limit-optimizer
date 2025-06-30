@@ -3,13 +3,9 @@
 package main
 
 import (
-	"context"
 	"flag"
-	"fmt"
 	"os"
-	"time"
 
-	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -18,9 +14,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
-	"github.com/tapasyadubey/mimir-limit-optimizer/internal/config"
-	"github.com/tapasyadubey/mimir-limit-optimizer/internal/controller"
-	"github.com/tapasyadubey/mimir-limit-optimizer/internal/metrics"
+	"github.com/AkshayDubey29/mimir-limit-optimizer/internal/config"
+	"github.com/AkshayDubey29/mimir-limit-optimizer/internal/controller"
+	"github.com/AkshayDubey29/mimir-limit-optimizer/internal/metrics"
 )
 
 var (
@@ -56,13 +52,13 @@ func main() {
 	// Set log level
 	switch logLevel {
 	case "debug":
-		opts.Level = zap.NewAtomicLevelAt(-1)
+		opts.Development = true
 	case "info":
-		opts.Level = zap.NewAtomicLevelAt(0)
+		// Default level, no changes needed
 	case "warn":
-		opts.Level = zap.NewAtomicLevelAt(1)
+		// In controller-runtime zap, use default with lower verbosity
 	case "error":
-		opts.Level = zap.NewAtomicLevelAt(2)
+		// In controller-runtime zap, use default with lower verbosity
 	}
 
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))

@@ -9,9 +9,9 @@ import (
 
 	"github.com/go-logr/logr"
 
-	"github.com/tapasyadubey/mimir-limit-optimizer/internal/collector"
-	"github.com/tapasyadubey/mimir-limit-optimizer/internal/config"
-	"github.com/tapasyadubey/mimir-limit-optimizer/internal/metrics"
+	"github.com/AkshayDubey29/mimir-limit-optimizer/internal/collector"
+	"github.com/AkshayDubey29/mimir-limit-optimizer/internal/config"
+	"github.com/AkshayDubey29/mimir-limit-optimizer/internal/metrics"
 )
 
 // TenantLimits represents calculated limits for a tenant

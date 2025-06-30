@@ -1,17 +1,14 @@
 package alerting
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
-	"net/http"
 	"sync"
 	"time"
 
 	"github.com/go-logr/logr"
-	"github.com/tapasyadubey/mimir-limit-optimizer/internal/config"
-	"github.com/tapasyadubey/mimir-limit-optimizer/internal/metrics"
+	"github.com/AkshayDubey29/mimir-limit-optimizer/internal/config"
+	"github.com/AkshayDubey29/mimir-limit-optimizer/internal/metrics"
 )
 
 // AlertType represents different types of alerts
@@ -338,17 +335,17 @@ func (m *Manager) initializeChannels() error {
 	}
 	
 	// Initialize Webhook channels
-	for name, webhookConfig := range m.config.Webhooks {
+	for i, webhookConfig := range m.config.Webhooks {
 		if webhookConfig.Enabled {
-			webhook := NewWebhookChannel(name, webhookConfig, m.logger.WithName("webhook").WithValues("name", name))
+			webhook := NewWebhookChannel(webhookConfig.Name, webhookConfig, m.logger.WithName("webhook").WithValues("name", webhookConfig.Name))
 			if err := webhook.ValidateConfiguration(); err != nil {
-				m.logger.Error(err, "Invalid Webhook configuration", "webhook", name)
-				m.metrics.IncAlertConfigurationErrors("webhook_"+name, "invalid_config")
+				m.logger.Error(err, "Invalid Webhook configuration", "webhook", webhookConfig.Name)
+				m.metrics.IncAlertConfigurationErrors("webhook_"+webhookConfig.Name, "invalid_config")
 				errors = append(errors, err)
 			} else {
-				m.channels["webhook_"+name] = webhook
-				m.circuitBreakers["webhook_"+name] = NewChannelCircuitBreaker(5, 5*time.Minute)
-				m.logger.Info("Webhook channel initialized successfully", "webhook", name)
+				m.channels["webhook_"+webhookConfig.Name] = webhook
+				m.circuitBreakers["webhook_"+webhookConfig.Name] = NewChannelCircuitBreaker(5, 5*time.Minute)
+				m.logger.Info("Webhook channel initialized successfully", "webhook", webhookConfig.Name, "index", i)
 			}
 		}
 	}

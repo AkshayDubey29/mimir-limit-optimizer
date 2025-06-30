@@ -483,15 +483,18 @@ type AlertingConfig struct {
 }
 
 type SlackConfig struct {
-	Enabled    bool   `yaml:"enabled" json:"enabled"`
-	WebhookURL string `yaml:"webhookURL" json:"webhookURL"`
-	Channel    string `yaml:"channel" json:"channel"`
+	Enabled    bool          `yaml:"enabled" json:"enabled"`
+	WebhookURL string        `yaml:"webhookURL" json:"webhookURL"`
+	Channel    string        `yaml:"channel" json:"channel"`
+	Username   string        `yaml:"username" json:"username"`
+	Timeout    time.Duration `yaml:"timeout" json:"timeout"`
 }
 
 type PagerDutyConfig struct {
-	Enabled        bool   `yaml:"enabled" json:"enabled"`
-	IntegrationKey string `yaml:"integrationKey" json:"integrationKey"`
-	Severity       string `yaml:"severity" json:"severity"`
+	Enabled        bool          `yaml:"enabled" json:"enabled"`
+	IntegrationKey string        `yaml:"integrationKey" json:"integrationKey"`
+	Severity       string        `yaml:"severity" json:"severity"`
+	Timeout        time.Duration `yaml:"timeout" json:"timeout"`
 }
 
 type EmailConfig struct {
@@ -502,6 +505,7 @@ type EmailConfig struct {
 	Password string   `yaml:"password" json:"password"`
 	From     string   `yaml:"from" json:"from"`
 	To       []string `yaml:"to" json:"to"`
+	UseTLS   bool     `yaml:"useTLS" json:"useTLS"`
 }
 
 type WebhookConfig struct {
@@ -509,6 +513,8 @@ type WebhookConfig struct {
 	URL     string            `yaml:"url" json:"url"`
 	Headers map[string]string `yaml:"headers" json:"headers"`
 	Timeout time.Duration     `yaml:"timeout" json:"timeout"`
+	Enabled bool              `yaml:"enabled" json:"enabled"`
+	Method  string            `yaml:"method" json:"method"`
 }
 
 type AlertRoutingRule struct {

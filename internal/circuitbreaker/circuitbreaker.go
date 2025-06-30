@@ -8,10 +8,9 @@ import (
 
 	"github.com/go-logr/logr"
 
-	"github.com/tapasyadubey/mimir-limit-optimizer/internal/analyzer"
-	"github.com/tapasyadubey/mimir-limit-optimizer/internal/collector"
-	"github.com/tapasyadubey/mimir-limit-optimizer/internal/config"
-	"github.com/tapasyadubey/mimir-limit-optimizer/internal/metrics"
+	"github.com/AkshayDubey29/mimir-limit-optimizer/internal/analyzer"
+	"github.com/AkshayDubey29/mimir-limit-optimizer/internal/collector"
+	"github.com/AkshayDubey29/mimir-limit-optimizer/internal/config"
 )
 
 // CircuitBreakerState represents the current state of the circuit breaker
@@ -302,7 +301,7 @@ func (bp *BlastProtector) GetProtectionStatus() map[string]interface{} {
 // Private methods
 
 func (bp *BlastProtector) handleBlastDetection(ctx context.Context) {
-	bp.log.Warn("blast detected, applying protection measures")
+	bp.log.Info("blast detected, applying protection measures")
 
 	if bp.config.CircuitBreaker.BlastProtection.AutoEmergencyShutdown {
 		bp.EnterEmergencyMode("blast_detected")
@@ -384,7 +383,7 @@ func (bp *BlastProtector) updateCircuitBreakerState() {
 		if bp.shouldOpenCircuit() {
 			bp.state = StateOpen
 			bp.lastStateChange = now
-			bp.log.Warn("circuit breaker opened", "failures", bp.failures, "requests", bp.requests)
+			bp.log.Info("circuit breaker opened", "failures", bp.failures, "requests", bp.requests)
 		}
 
 	case StateOpen:
@@ -404,7 +403,7 @@ func (bp *BlastProtector) updateCircuitBreakerState() {
 				bp.log.Info("circuit breaker closed - recovery successful")
 			} else {
 				bp.state = StateOpen
-				bp.log.Warn("circuit breaker reopened - recovery failed")
+				bp.log.Info("circuit breaker reopened - recovery failed")
 			}
 			bp.lastStateChange = now
 		}
@@ -535,7 +534,7 @@ func (bd *BlastDetector) detectBlast(tenantMetrics map[string]*collector.TenantM
 
 	for tenant, blastMetrics := range bd.metrics {
 		if bd.isBlastCondition(tenant, blastMetrics) {
-			bd.log.Warn("blast condition detected", "tenant", tenant)
+			bd.log.Info("blast condition detected", "tenant", tenant)
 			return true
 		}
 	}
@@ -733,7 +732,7 @@ func (bp *BlastProtector) recalculateThresholds() {
 func (bp *BlastProtector) adaptThresholds(tenantMetrics map[string]*collector.TenantMetrics) {
 	config := bp.config.CircuitBreaker.AutoConfig.RealtimeAdaptation
 	
-	for tenant, metrics := range tenantMetrics {
+	for tenant := range tenantMetrics {
 		threshold, exists := bp.autoConfig.tenantThresholds[tenant]
 		if !exists {
 			continue
