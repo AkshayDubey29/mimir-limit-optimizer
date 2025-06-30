@@ -154,16 +154,30 @@ data:
         burstCapacity: {{ .Values.circuitBreaker.rateLimit.burstCapacity }}
         window: {{ .Values.circuitBreaker.rateLimit.window | quote }}
       blastProtection:
-        ingestionSpikeThreshold: >-
-          {{.Values.circuitBreaker.blastProtection.ingestionSpikeThreshold}}
-        querySpikeThreshold: >-
-          {{.Values.circuitBreaker.blastProtection.querySpikeThreshold}}
-        seriesSpikeThreshold: >-
-          {{.Values.circuitBreaker.blastProtection.seriesSpikeThreshold}}
-        autoEmergencyShutdown: >-
-          {{.Values.circuitBreaker.blastProtection.autoEmergencyShutdown}}
-        recoveryTime: >-
-          {{.Values.circuitBreaker.blastProtection.recoveryTime | quote}}
+        useAutoThresholds: {{.Values.circuitBreaker.blastProtection.useAutoThresholds}}
+        {{- if .Values.circuitBreaker.blastProtection.manualThresholds }}
+        manualThresholds:
+          ingestionSpikeThreshold: {{.Values.circuitBreaker.blastProtection.manualThresholds.ingestionSpikeThreshold}}
+          querySpikeThreshold: {{.Values.circuitBreaker.blastProtection.manualThresholds.querySpikeThreshold}}
+          seriesSpikeThreshold: {{.Values.circuitBreaker.blastProtection.manualThresholds.seriesSpikeThreshold}}
+        {{- end}}
+        {{- if .Values.circuitBreaker.blastProtection.tenantOverrides }}
+        tenantOverrides:
+        {{- range $tenant, $overrides := .Values.circuitBreaker.blastProtection.tenantOverrides }}
+          {{ $tenant }}:
+            {{- if $overrides.ingestionSpikeThreshold }}
+            ingestionSpikeThreshold: {{ $overrides.ingestionSpikeThreshold }}
+            {{- end }}
+            {{- if $overrides.querySpikeThreshold }}
+            querySpikeThreshold: {{ $overrides.querySpikeThreshold }}
+            {{- end }}
+            {{- if $overrides.seriesSpikeThreshold }}
+            seriesSpikeThreshold: {{ $overrides.seriesSpikeThreshold }}
+            {{- end }}
+        {{- end }}
+        {{- end }}
+        autoEmergencyShutdown: {{.Values.circuitBreaker.blastProtection.autoEmergencyShutdown}}
+        recoveryTime: {{.Values.circuitBreaker.blastProtection.recoveryTime | quote}}
 
     emergency:
       enabled: {{ .Values.emergency.enabled }}
@@ -182,8 +196,7 @@ data:
       recoveryProcedures:
         autoRecovery: {{ .Values.emergency.recoveryProcedures.autoRecovery }}
         checkInterval: {{ .Values.emergency.recoveryProcedures.checkInterval | quote }}
-        healthCheckTimeout: >-
-          {{.Values.emergency.recoveryProcedures.healthCheckTimeout | quote}}
+        healthCheckTimeout: {{.Values.emergency.recoveryProcedures.healthCheckTimeout | quote}}
         maxAttempts: {{ .Values.emergency.recoveryProcedures.maxAttempts }}
 
     alerting:
