@@ -60,6 +60,9 @@ type Config struct {
 	
 	// Performance optimization
 	Performance PerformanceConfig `yaml:"performance" json:"performance"`
+	
+	// Dynamic limits configuration
+	DynamicLimits DynamicLimitsConfig `yaml:"dynamicLimits" json:"dynamicLimits"`
 }
 
 type MimirConfig struct {
@@ -623,14 +626,35 @@ type CompressionConfig struct {
 	Level int `yaml:"level" json:"level"`
 }
 
-// LoadConfig loads configuration from file or environment
-func LoadConfig(configFile string) (*Config, error) {
+// DynamicLimitsConfig defines configuration for dynamic limit management
+type DynamicLimitsConfig struct {
+	Enabled         bool                        `yaml:"enabled"`
+	LimitDefinitions map[string]LimitDefinition `yaml:"limit_definitions"`
+	DefaultBuffer   float64                     `yaml:"default_buffer"`
+	AutoDetect      bool                        `yaml:"auto_detect"`
+}
+
+// LimitDefinition defines how to handle a specific limit type
+type LimitDefinition struct {
+	Name          string      `yaml:"name"`
+	Type          string      `yaml:"type"` // "rate", "count", "size", "duration", "percentage"
+	MetricSource  string      `yaml:"metric_source"`
+	DefaultValue  interface{} `yaml:"default_value"`
+	MinValue      interface{} `yaml:"min_value"`
+	MaxValue      interface{} `yaml:"max_value"`
+	BufferFactor  float64     `yaml:"buffer_factor"`
+	Enabled       bool        `yaml:"enabled"`
+	Description   string      `yaml:"description"`
+}
+
+// GetDefaultConfig returns a configuration with sensible defaults
+func GetDefaultConfig() *Config {
 	mode := getEnvOrDefault("MODE", "dry-run")
 	
 	// Circuit breaker should be disabled by default in dry-run mode for observation purposes
 	circuitBreakerEnabled := mode == "prod"
 	
-	config := &Config{
+	return &Config{
 		Mode:             mode,
 		BufferPercentage: 20.0,
 		UpdateInterval:   5 * time.Minute,
@@ -793,26 +817,39 @@ func LoadConfig(configFile string) (*Config, error) {
 				Level:     6,
 			},
 		},
+		DynamicLimits: DynamicLimitsConfig{
+			Enabled:         true,
+			LimitDefinitions: GetDefaultLimitDefinitions(),
+			DefaultBuffer:   20.0,
+			AutoDetect:      true,
+		},
 	}
-
-	if configFile != "" {
-		return loadConfigFromFile(configFile, config)
-	}
-
-	return config, nil
 }
 
-func loadConfigFromFile(configFile string, config *Config) (*Config, error) {
-	data, err := os.ReadFile(configFile)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read config file: %w", err)
+// LoadConfig loads configuration from file or environment
+func LoadConfig() (*Config, error) {
+	cfg := GetDefaultConfig()
+
+	// Try to load from file
+	if configFile := os.Getenv("CONFIG_FILE"); configFile != "" {
+		data, err := os.ReadFile(configFile)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read config file: %w", err)
+		}
+
+		if err := yaml.Unmarshal(data, cfg); err != nil {
+			return nil, fmt.Errorf("failed to parse config file: %w", err)
+		}
 	}
 
-	if err := yaml.Unmarshal(data, config); err != nil {
-		return nil, fmt.Errorf("failed to parse config file: %w", err)
-	}
+	return cfg, nil
+}
 
-	return config, nil
+func getEnvOrDefault(key, defaultValue string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	return defaultValue
 }
 
 // Validate validates the configuration
@@ -858,11 +895,4 @@ func (c *Config) Validate() error {
 	}
 
 	return nil
-}
-
-func getEnvOrDefault(key, defaultValue string) string {
-	if value := os.Getenv(key); value != "" {
-		return value
-	}
-	return defaultValue
 } 

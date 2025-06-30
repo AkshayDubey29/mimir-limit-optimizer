@@ -14,17 +14,25 @@ import (
 	"github.com/AkshayDubey29/mimir-limit-optimizer/internal/metrics"
 )
 
-// TenantLimits represents calculated limits for a tenant
+// TenantLimits represents calculated limits for a tenant with dynamic limit support
 type TenantLimits struct {
-	Tenant            string
-	IngestionRate     float64
-	IngestionBurst    float64
-	MaxSeries         float64
-	MaxSamplesPerQuery float64
-	MaxQueryLookback  time.Duration
-	LastUpdated       time.Time
-	Reason            string
-	Source            string
+	Tenant      string
+	Limits      map[string]interface{} // Dynamic limits map supporting all Mimir limit types
+	LastUpdated time.Time
+	Reason      string
+	Source      string
+}
+
+// LimitDefinition defines how to handle a specific limit type
+type LimitDefinition struct {
+	Name          string      // Mimir configuration name (e.g., "ingestion_rate")
+	Type          string      // "rate", "count", "size", "duration", "percentage"
+	MetricSource  string      // Which metric to use for calculations
+	DefaultValue  interface{} // Default value if not specified
+	MinValue      interface{} // Minimum allowed value
+	MaxValue      interface{} // Maximum allowed value
+	BufferFactor  float64     // Buffer percentage to apply
+	Enabled       bool        // Whether this limit should be optimized
 }
 
 // AnalysisResult contains the results of trend analysis
@@ -127,6 +135,7 @@ func (a *TrendAnalyzer) CalculateLimits(ctx context.Context, analysisResults map
 	for tenant, results := range analysisResults {
 		tenantLimits := &TenantLimits{
 			Tenant:      tenant,
+			Limits:      make(map[string]interface{}),
 			LastUpdated: time.Now(),
 			Reason:      "trend-analysis",
 			Source:      "analyzer",
@@ -469,51 +478,91 @@ func (a *TrendAnalyzer) setSpikeInfo(tenant, metricName string, info *SpikeInfo)
 	a.spikeState[tenant][metricName] = info
 }
 
+// applyMetricToLimits applies analysis results to the dynamic limits map
 func (a *TrendAnalyzer) applyMetricToLimits(limits *TenantLimits, result AnalysisResult) {
-	switch result.MetricName {
-	case "cortex_distributor_received_samples_total":
-		limits.IngestionRate = math.Max(limits.IngestionRate, result.RecommendedLimit)
-		limits.IngestionBurst = math.Max(limits.IngestionBurst, result.RecommendedLimit*2)
-	case "cortex_ingester_memory_series":
-		limits.MaxSeries = math.Max(limits.MaxSeries, result.RecommendedLimit)
-	case "cortex_querier_queries_total", "cortex_query_frontend_queries_total":
-		limits.MaxSamplesPerQuery = math.Max(limits.MaxSamplesPerQuery, result.RecommendedLimit*1000)
+	// Get the limit mapping from metric name to limit field
+	limitMapping := a.getMetricToLimitMapping()
+	
+	if limitName, exists := limitMapping[result.MetricName]; exists {
+		// Check if this limit is enabled in configuration
+		if limitDef, found := a.config.DynamicLimits.LimitDefinitions[limitName]; found && limitDef.Enabled {
+			limits.Limits[limitName] = result.RecommendedLimit
+		}
 	}
 }
 
+// getMetricToLimitMapping returns mapping from metric names to Mimir limit names
+func (a *TrendAnalyzer) getMetricToLimitMapping() map[string]string {
+	return map[string]string{
+		"prometheus_remote_storage_samples_in_total":    "ingestion_rate",
+		"prometheus_remote_storage_samples_burst":       "ingestion_burst_size", // Different metric for burst
+		"prometheus_tsdb_head_series":                   "max_global_series_per_user",
+		"prometheus_engine_query_samples_total":         "max_samples_per_query",
+		"prometheus_engine_query_series_total":          "max_series_per_query",
+		"prometheus_tsdb_head_chunks":                   "max_fetched_chunks_per_query",
+		"prometheus_tsdb_compaction_chunk_size_bytes":   "max_fetched_chunk_bytes_per_query",
+		"prometheus_tsdb_exemplar_exemplars_total":      "max_global_exemplars_per_user",
+		"prometheus_rule_group_rules":                   "ruler_max_rules_per_rule_group",
+		"alertmanager_notifications_total":             "alertmanager_notification_rate_limit",
+		"alertmanager_alerts":                           "alertmanager_max_alerts_count",
+		"http_requests_total":                           "request_rate",
+	}
+}
+
+// applyBufferPercentage applies buffer to all dynamic limits
 func (a *TrendAnalyzer) applyBufferPercentage(limits *TenantLimits, tenant string) {
-	bufferPercentage := a.config.BufferPercentage
-
-	// Check for tenant-specific buffer
-	if tierConfig, exists := a.config.Limits.TenantTiers[tenant]; exists {
-		bufferPercentage = tierConfig.BufferPercentage
+	for limitName, limitValue := range limits.Limits {
+		if limitDef, exists := a.config.DynamicLimits.LimitDefinitions[limitName]; exists {
+			bufferFactor := limitDef.BufferFactor
+			if bufferFactor == 0 {
+				bufferFactor = a.config.DynamicLimits.DefaultBuffer
+			}
+			
+			// Apply buffer based on limit type
+			switch limitDef.Type {
+			case "rate", "count", "size":
+				if val, ok := limitValue.(float64); ok && bufferFactor > 0 {
+					bufferedValue := val * (1 + bufferFactor/100)
+					limits.Limits[limitName] = bufferedValue
+				}
+			case "percentage":
+				// Percentage limits don't typically need buffers
+			case "duration":
+				// Duration limits are handled as strings, skip buffering
+			}
+		}
 	}
-
-	multiplier := 1.0 + (bufferPercentage / 100.0)
-
-	limits.IngestionRate *= multiplier
-	limits.IngestionBurst *= multiplier
-	limits.MaxSeries *= multiplier
-	limits.MaxSamplesPerQuery *= multiplier
 }
 
+// applyConstraints applies min/max constraints to all dynamic limits
 func (a *TrendAnalyzer) applyConstraints(limits *TenantLimits, tenant string) {
-	// Apply global min/max constraints
-	if minLimits := a.config.Limits.MinLimits; minLimits != nil {
-		if val, ok := minLimits["ingestion_rate"].(float64); ok {
-			limits.IngestionRate = math.Max(limits.IngestionRate, val)
-		}
-		if val, ok := minLimits["max_series"].(float64); ok {
-			limits.MaxSeries = math.Max(limits.MaxSeries, val)
-		}
-	}
-
-	if maxLimits := a.config.Limits.MaxLimits; maxLimits != nil {
-		if val, ok := maxLimits["ingestion_rate"].(float64); ok {
-			limits.IngestionRate = math.Min(limits.IngestionRate, val)
-		}
-		if val, ok := maxLimits["max_series"].(float64); ok {
-			limits.MaxSeries = math.Min(limits.MaxSeries, val)
+	for limitName, limitValue := range limits.Limits {
+		if limitDef, exists := a.config.DynamicLimits.LimitDefinitions[limitName]; exists {
+			// Apply constraints based on limit type
+			switch limitDef.Type {
+			case "rate", "count", "size", "percentage":
+				val, ok := limitValue.(float64)
+				if !ok {
+					continue
+				}
+				
+				// Apply minimum constraint
+				if limitDef.MinValue != nil {
+					if minVal, ok := limitDef.MinValue.(float64); ok && val < minVal {
+						limits.Limits[limitName] = minVal
+						val = minVal
+					}
+				}
+				
+				// Apply maximum constraint
+				if limitDef.MaxValue != nil {
+					if maxVal, ok := limitDef.MaxValue.(float64); ok && val > maxVal {
+						limits.Limits[limitName] = maxVal
+					}
+				}
+			case "duration":
+				// Duration constraints would need parsing - skip for now
+			}
 		}
 	}
 }

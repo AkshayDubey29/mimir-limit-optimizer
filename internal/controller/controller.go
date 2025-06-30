@@ -432,14 +432,11 @@ func (r *MimirLimitController) logEnterpriseStatus(ctx context.Context, costs ma
 // updateCurrentLimitsMetrics updates metrics with current limit values
 func (r *MimirLimitController) updateCurrentLimitsMetrics(ctx context.Context, limits map[string]*analyzer.TenantLimits) {
 	for tenant, limit := range limits {
-		if limit.IngestionRate > 0 {
-			metrics.TenantMetricsInstance.SetTenantCurrentLimits(tenant, "ingestion_rate", limit.IngestionRate)
-		}
-		if limit.MaxSeries > 0 {
-			metrics.TenantMetricsInstance.SetTenantCurrentLimits(tenant, "max_series", limit.MaxSeries)
-		}
-		if limit.MaxSamplesPerQuery > 0 {
-			metrics.TenantMetricsInstance.SetTenantCurrentLimits(tenant, "max_samples_per_query", limit.MaxSamplesPerQuery)
+		// Update metrics for all dynamic limits
+		for limitName, limitValue := range limit.Limits {
+			if val, ok := limitValue.(float64); ok && val > 0 {
+				metrics.TenantMetricsInstance.SetTenantCurrentLimits(tenant, limitName, val)
+			}
 		}
 	}
 }

@@ -93,7 +93,7 @@ func main() {
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
 
 	// Load configuration
-	cfg, err := config.LoadConfig(configFile)
+	cfg, err := config.LoadConfig()
 	if err != nil {
 		setupLog.Error(err, "unable to load config")
 		os.Exit(1)

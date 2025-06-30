@@ -418,47 +418,65 @@ func (bp *BlastProtector) shouldOpenCircuit() bool {
 }
 
 func (bp *BlastProtector) adjustLimitsBasedOnState(tenant string, limit *analyzer.TenantLimits) *analyzer.TenantLimits {
-	adjustedLimit := *limit
+	adjustedLimit := &analyzer.TenantLimits{
+		Tenant:      limit.Tenant,
+		Limits:      make(map[string]interface{}),
+		LastUpdated: time.Now(),
+		Reason:      limit.Reason,
+		Source:      "circuit-breaker",
+	}
+
+	// Copy all limits and apply reduction factors based on state
+	var reductionFactor float64 = 1.0
+	var reason string
 
 	switch bp.state {
 	case StateOpen:
 		// Drastically reduce limits during open state
-		adjustedLimit.IngestionRate *= 0.1
-		adjustedLimit.IngestionBurst *= 0.1
-		adjustedLimit.MaxSeries *= 0.1
-		adjustedLimit.MaxSamplesPerQuery *= 0.1
-		adjustedLimit.Reason = "circuit_breaker_open"
+		reductionFactor = 0.1
+		reason = "circuit_breaker_open"
 
 	case StateHalfOpen:
 		// Moderately reduce limits during half-open state
-		adjustedLimit.IngestionRate *= 0.5
-		adjustedLimit.IngestionBurst *= 0.5
-		adjustedLimit.MaxSeries *= 0.5
-		adjustedLimit.MaxSamplesPerQuery *= 0.5
-		adjustedLimit.Reason = "circuit_breaker_half_open"
+		reductionFactor = 0.5
+		reason = "circuit_breaker_half_open"
 
 	case StateClosed:
 		// Normal operation
 		if bp.emergencyMode {
 			// Still in emergency mode but circuit is closed
-			adjustedLimit.IngestionRate *= 0.8
-			adjustedLimit.IngestionBurst *= 0.8
-			adjustedLimit.MaxSeries *= 0.8
-			adjustedLimit.MaxSamplesPerQuery *= 0.8
-			adjustedLimit.Reason = "emergency_mode"
+			reductionFactor = 0.8
+			reason = "emergency_mode"
 		}
 	}
 
 	if bp.panicMode {
 		// Extreme reduction in panic mode
-		adjustedLimit.IngestionRate *= 0.05
-		adjustedLimit.IngestionBurst *= 0.05
-		adjustedLimit.MaxSeries *= 0.05
-		adjustedLimit.MaxSamplesPerQuery *= 0.05
-		adjustedLimit.Reason = "panic_mode"
+		reductionFactor = 0.05
+		reason = "panic_mode"
 	}
 
-	return &adjustedLimit
+	// Apply reduction to all dynamic limits
+	for limitName, limitValue := range limit.Limits {
+		adjustedValue := limitValue
+		
+		if reductionFactor < 1.0 {
+			switch v := limitValue.(type) {
+			case float64:
+				adjustedValue = v * reductionFactor
+			case int64:
+				adjustedValue = int64(float64(v) * reductionFactor)
+			}
+		}
+		
+		adjustedLimit.Limits[limitName] = adjustedValue
+	}
+
+	if reason != "" {
+		adjustedLimit.Reason = reason
+	}
+
+	return adjustedLimit
 }
 
 func (bp *BlastProtector) executeEmergencyActions() {
@@ -705,11 +723,38 @@ func (bp *BlastProtector) recalculateThresholds() {
 			safetyMargin = tenantMargin
 		}
 
+		// Extract values from dynamic limits map
+		var ingestionRate, querySamples, maxSeries, ingestionBurst float64
+
+		if val, exists := limits.Limits["ingestion_rate"]; exists {
+			if v, ok := val.(float64); ok {
+				ingestionRate = v
+			}
+		}
+
+		if val, exists := limits.Limits["max_samples_per_query"]; exists {
+			if v, ok := val.(float64); ok {
+				querySamples = v
+			}
+		}
+
+		if val, exists := limits.Limits["max_global_series_per_user"]; exists {
+			if v, ok := val.(float64); ok {
+				maxSeries = v
+			}
+		}
+
+		if val, exists := limits.Limits["ingestion_burst_size"]; exists {
+			if v, ok := val.(float64); ok {
+				ingestionBurst = v
+			}
+		}
+
 		threshold := &TenantThresholds{
-			IngestionThreshold: limits.IngestionRate * multipliers.IngestionRateMultiplier * (1 + safetyMargin/100),
-			QueryThreshold:     float64(limits.MaxSamplesPerQuery) * multipliers.QueryRateMultiplier * (1 + safetyMargin/100),
-			SeriesThreshold:    float64(limits.MaxSeries) * multipliers.SeriesMultiplier * (1 + safetyMargin/100),
-			BurstThreshold:     limits.IngestionBurst * multipliers.BurstMultiplier * (1 + safetyMargin/100),
+			IngestionThreshold: ingestionRate * multipliers.IngestionRateMultiplier * (1 + safetyMargin/100),
+			QueryThreshold:     querySamples * multipliers.QueryRateMultiplier * (1 + safetyMargin/100),
+			SeriesThreshold:    maxSeries * multipliers.SeriesMultiplier * (1 + safetyMargin/100),
+			BurstThreshold:     ingestionBurst * multipliers.BurstMultiplier * (1 + safetyMargin/100),
 			LastCalculated:     time.Now(),
 			BasedOnLimits:      limits,
 			SafetyMargin:       safetyMargin,

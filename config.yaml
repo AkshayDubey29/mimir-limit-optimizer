@@ -1,0 +1,44 @@
+# Mimir Limit Optimizer Configuration
+mode: dry-run
+bufferPercentage: 20.0
+updateInterval: 5m
+
+# Mimir cluster configuration
+mimir:
+  namespace: mimir
+  configMapName: mimir-runtime-overrides
+  triggerRollout: false
+  rolloutComponents:
+    - ingester
+    - querier
+    - query-frontend
+
+# Tenant scoping
+tenantScoping:
+  skipList: []
+  includeList: []
+  useRegex: false
+
+# Dynamic limits configuration
+dynamicLimits:
+  enabled: true
+  defaultBuffer: 20.0
+  autoDetect: true
+
+# Cost control
+costControl:
+  enabled: true
+  costMethod: composite
+  costPerUnit: 0.001
+
+# Circuit breaker for protection
+circuitBreaker:
+  enabled: false  # Disabled in dry-run mode
+  runtimeEnabled: false
+  mode: auto
+
+# Audit logging
+auditLog:
+  enabled: true
+  storageType: memory
+  maxEntries: 1000 

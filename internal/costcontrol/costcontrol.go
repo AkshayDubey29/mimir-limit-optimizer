@@ -310,14 +310,29 @@ func (cc *CostController) reduceLimitsForBudget(limits *analyzer.TenantLimits, c
 		reductionFactor = math.Min(reductionFactor, budget.Daily/costData.DailyCost)
 	}
 
-	adjustedLimits := *limits
-	adjustedLimits.IngestionRate *= reductionFactor
-	adjustedLimits.IngestionBurst *= reductionFactor
-	adjustedLimits.MaxSeries *= reductionFactor
-	adjustedLimits.MaxSamplesPerQuery *= reductionFactor
-	adjustedLimits.Reason = "budget-enforcement"
+	adjustedLimits := &analyzer.TenantLimits{
+		Tenant:      limits.Tenant,
+		Limits:      make(map[string]interface{}),
+		LastUpdated: time.Now(),
+		Reason:      "budget-enforcement",
+		Source:      "cost-control",
+	}
 
-	return &adjustedLimits
+	// Apply reduction to all dynamic limits
+	for limitName, limitValue := range limits.Limits {
+		adjustedValue := limitValue
+		
+		switch v := limitValue.(type) {
+		case float64:
+			adjustedValue = v * reductionFactor
+		case int64:
+			adjustedValue = int64(float64(v) * reductionFactor)
+		}
+		
+		adjustedLimits.Limits[limitName] = adjustedValue
+	}
+
+	return adjustedLimits
 }
 
 func (cc *CostController) sendBudgetAlert(tenant string, costData *TenantCostData, budget config.BudgetConfig) {
@@ -374,4 +389,69 @@ func (cc *CostController) PredictFutureCosts(tenant string, days int) (*TenantCo
 	}
 
 	return predicted, nil
+}
+
+func (cc *CostController) applyBudgetBasedLimits(tenantLimits map[string]*analyzer.TenantLimits, costs map[string]float64, budgets map[string]float64) map[string]*analyzer.TenantLimits {
+	adjustedLimits := make(map[string]*analyzer.TenantLimits)
+
+	for tenant, limits := range tenantLimits {
+		budget, hasBudget := budgets[tenant]
+		cost, hasCost := costs[tenant]
+
+		if !hasBudget || !hasCost {
+			// No budget or cost data, use original limits
+			adjustedLimits[tenant] = limits
+			continue
+		}
+
+		// Calculate budget utilization
+		utilization := cost / budget
+		
+		// Copy the original limits
+		adjustedLimit := &analyzer.TenantLimits{
+			Tenant:      limits.Tenant,
+			Limits:      make(map[string]interface{}),
+			LastUpdated: time.Now(),
+			Reason:      limits.Reason,
+			Source:      "cost-control",
+		}
+
+		// Copy and potentially adjust all dynamic limits
+		for limitName, limitValue := range limits.Limits {
+			adjustedValue := limitValue
+			
+			// Apply budget-based adjustments based on limit type
+			if cc.config.CostControl.AutoLimitReduction && utilization > 0.95 {
+				// Reduce limits if budget utilization is over 95%
+				reductionFactor := 0.8 // Reduce by 20%
+				
+				switch v := limitValue.(type) {
+				case float64:
+					adjustedValue = v * reductionFactor
+				case int64:
+					adjustedValue = int64(float64(v) * reductionFactor)
+				}
+				
+				adjustedLimit.Reason = fmt.Sprintf("budget-exceeded(%.1f%%)", utilization*100)
+			} else if cc.config.CostControl.AutoLimitReduction && utilization > 0.75 {
+				// Slightly reduce limits if budget utilization is over 75%
+				reductionFactor := 0.9 // Reduce by 10%
+				
+				switch v := limitValue.(type) {
+				case float64:
+					adjustedValue = v * reductionFactor
+				case int64:
+					adjustedValue = int64(float64(v) * reductionFactor)
+				}
+				
+				adjustedLimit.Reason = fmt.Sprintf("budget-warning(%.1f%%)", utilization*100)
+			}
+			
+			adjustedLimit.Limits[limitName] = adjustedValue
+		}
+
+		adjustedLimits[tenant] = adjustedLimit
+	}
+
+	return adjustedLimits
 } 

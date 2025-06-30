@@ -580,3 +580,59 @@ configOverride: ""
 # RBAC configuration
 rbac:
   create: true
+
+# Configuration for dynamic limit management
+dynamicLimits:
+  enabled: true
+  defaultBuffer: 20.0
+  autoDetect: true
+  
+  # Enable/disable specific limits for optimization
+  # By default, only the most important limits are enabled
+  enabledLimits:
+    # Ingestion Limits (enabled by default)
+    - ingestion_rate
+    - ingestion_burst_size
+    - max_global_series_per_user
+    
+    # Query Limits (enabled by default)
+    - max_samples_per_query
+    - max_fetched_chunks_per_query
+    - max_fetched_series_per_query
+    - max_fetched_chunk_bytes_per_query
+    - max_series_per_query
+    
+    # Additional limits (disabled by default - uncomment to enable)
+    # - max_global_series_per_metric
+    # - max_global_metadata_per_user
+    # - max_global_metadata_per_metric
+    # - max_global_exemplars_per_user
+    # - max_query_lookback
+    # - max_query_length
+    # - request_rate
+    # - request_burst_size
+    # - ruler_max_rules_per_rule_group
+    # - ruler_max_rule_groups_per_tenant
+    # - alertmanager_notification_rate_limit
+    # - alertmanager_max_dispatcher_aggregation_groups
+    # - alertmanager_max_alerts_count
+    # - alertmanager_max_alerts_size_bytes
+    # - compactor_blocks_retention_period
+    # - store_gateway_tenant_shard_size
+    # - max_label_names_per_series
+    # - max_label_name_length
+    # - max_label_value_length
+    # - out_of_order_time_window
+  
+  # Override default values for specific limits
+  limitOverrides: {}
+    # ingestion_rate:
+    #   defaultValue: 50000.0
+    #   minValue: 5000.0
+    #   maxValue: 5000000.0
+    #   bufferFactor: 30.0
+    # max_global_series_per_user:
+    #   defaultValue: 200000.0
+    #   minValue: 10000.0
+    #   maxValue: 50000000.0
+    #   bufferFactor: 25.0

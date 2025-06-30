@@ -3,6 +3,7 @@ package patcher
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -294,37 +295,46 @@ func (p *ConfigMapPatcher) applyLimitsToOverrides(overrides map[string]interface
 	}
 
 	// Apply limits for each tenant
-	for tenant, limits := range limits {
+	for tenant, tenantLimits := range limits {
 		// Filter tenants based on configuration
 		if p.shouldSkipTenant(tenant) {
 			continue
 		}
 
-		tenantLimits := make(map[string]interface{})
+		tenantLimitConfig := make(map[string]interface{})
 
-		if limits.IngestionRate > 0 {
-			tenantLimits["ingestion_rate"] = limits.IngestionRate
-		}
-		if limits.IngestionBurst > 0 {
-			tenantLimits["ingestion_burst_size"] = limits.IngestionBurst
-		}
-		if limits.MaxSeries > 0 {
-			tenantLimits["max_global_series_per_user"] = limits.MaxSeries
-		}
-		if limits.MaxSamplesPerQuery > 0 {
-			tenantLimits["max_samples_per_query"] = limits.MaxSamplesPerQuery
-		}
-		if limits.MaxQueryLookback > 0 {
-			tenantLimits["max_query_lookback"] = limits.MaxQueryLookback.String()
+		// Apply all configured dynamic limits
+		for limitName, limitValue := range tenantLimits.Limits {
+			// Check if this limit is enabled in configuration
+			if limitDef, exists := p.config.DynamicLimits.LimitDefinitions[limitName]; exists && limitDef.Enabled {
+				// Apply the limit value based on type
+				if limitValue != nil && !p.isZeroValue(limitValue) {
+					tenantLimitConfig[limitName] = limitValue
+				}
+			}
 		}
 
 		// Only update if there are actual limits to set
-		if len(tenantLimits) > 0 {
-			tenantOverrides[tenant] = tenantLimits
+		if len(tenantLimitConfig) > 0 {
+			tenantOverrides[tenant] = tenantLimitConfig
 		}
 	}
 
 	return overrides
+}
+
+// isZeroValue checks if a value is considered zero/empty for its type
+func (p *ConfigMapPatcher) isZeroValue(value interface{}) bool {
+	switch v := value.(type) {
+	case float64:
+		return v <= 0
+	case int64:
+		return v <= 0
+	case string:
+		return v == "" || v == "0s"
+	default:
+		return false
+	}
 }
 
 func (p *ConfigMapPatcher) updateConfigMap(ctx context.Context, configMap *corev1.ConfigMap, overrides map[string]interface{}) error {
@@ -424,25 +434,28 @@ func (p *ConfigMapPatcher) restartDeployment(ctx context.Context, deploymentName
 	return nil
 }
 
-
-
 func (p *ConfigMapPatcher) logChanges(oldOverrides, newOverrides map[string]interface{}, limits map[string]*analyzer.TenantLimits) {
 	if p.auditLog == nil {
 		return
 	}
 
 	for tenant, limit := range limits {
+		// Build dynamic changes map from all configured limits
+		changes := make(map[string]interface{})
+		
+		for limitName, limitValue := range limit.Limits {
+			// Only log enabled limits
+			if limitDef, exists := p.config.DynamicLimits.LimitDefinitions[limitName]; exists && limitDef.Enabled {
+				changes[limitName] = limitValue
+			}
+		}
+
 		entry := &auditlog.AuditEntry{
 			Timestamp: time.Now(),
 			Tenant:    tenant,
 			Action:    "update-limits",
 			Reason:    limit.Reason,
-			Changes: map[string]interface{}{
-				"ingestion_rate":          limit.IngestionRate,
-				"ingestion_burst":         limit.IngestionBurst,
-				"max_series":              limit.MaxSeries,
-				"max_samples_per_query":   limit.MaxSamplesPerQuery,
-			},
+			Changes:   changes,
 		}
 		
 		if err := p.auditLog.LogEntry(entry); err != nil {
@@ -468,27 +481,62 @@ func (p *ConfigMapPatcher) parseCurrentLimits(overrides map[string]interface{}) 
 
 		limit := &analyzer.TenantLimits{
 			Tenant:      tenant,
+			Limits:      make(map[string]interface{}),
 			LastUpdated: time.Now(),
 			Source:      "current-configmap",
 		}
 
-		if val, ok := tenantLimits["ingestion_rate"].(float64); ok {
-			limit.IngestionRate = val
-		}
-		if val, ok := tenantLimits["ingestion_burst_size"].(float64); ok {
-			limit.IngestionBurst = val
-		}
-		if val, ok := tenantLimits["max_global_series_per_user"].(float64); ok {
-			limit.MaxSeries = val
-		}
-		if val, ok := tenantLimits["max_samples_per_query"].(float64); ok {
-			limit.MaxSamplesPerQuery = val
+		// Parse all configured dynamic limits
+		for limitName, limitDef := range p.config.DynamicLimits.LimitDefinitions {
+			if limitDef.Enabled {
+				if val, exists := tenantLimits[limitName]; exists {
+					// Convert value based on limit type
+					convertedVal, err := p.convertLimitValue(val, limitDef.Type)
+					if err != nil {
+						p.log.Error(err, "failed to convert limit value", 
+							"tenant", tenant, "limit", limitName, "value", val, "type", limitDef.Type)
+						continue
+					}
+					limit.Limits[limitName] = convertedVal
+				}
+			}
 		}
 
-		limits[tenant] = limit
+		if len(limit.Limits) > 0 {
+			limits[tenant] = limit
+		}
 	}
 
 	return limits
+}
+
+// convertLimitValue converts a value to the appropriate type based on limit definition
+func (p *ConfigMapPatcher) convertLimitValue(value interface{}, limitType string) (interface{}, error) {
+	switch limitType {
+	case "rate", "count", "size", "percentage":
+		switch v := value.(type) {
+		case float64:
+			return v, nil
+		case int64:
+			return float64(v), nil
+		case string:
+			if parsed, err := strconv.ParseFloat(v, 64); err == nil {
+				return parsed, nil
+			}
+			return nil, fmt.Errorf("cannot convert string %q to numeric value", v)
+		default:
+			return nil, fmt.Errorf("unsupported value type %T for numeric limit", value)
+		}
+	case "duration":
+		switch v := value.(type) {
+		case string:
+			return v, nil // Keep as string for duration values
+		default:
+			return fmt.Sprintf("%v", v), nil
+		}
+	default:
+		return value, nil // Return as-is for unknown types
+	}
 }
 
 func (p *ConfigMapPatcher) countChanges(old, new map[string]interface{}) int {
