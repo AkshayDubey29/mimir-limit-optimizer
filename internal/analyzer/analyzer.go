@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -450,10 +451,43 @@ func (a *TrendAnalyzer) calculateRecommendedLimit(result *AnalysisResult) float6
 // Utility methods
 func (a *TrendAnalyzer) isAnalyzableMetric(metricName string) bool {
 	analyzableMetrics := []string{
+		// PRIMARY MIMIR METRICS - Core metrics for limit optimization
 		"cortex_distributor_received_samples_total",
+		"cortex_distributor_samples_in_total",
+		"cortex_ingester_ingested_samples_total",
 		"cortex_ingester_memory_series",
-		"cortex_querier_queries_total",
+		"cortex_ingester_memory_users",
 		"cortex_query_frontend_queries_total",
+		"cortex_querier_queries_total",
+		"cortex_query_frontend_query_duration_seconds",
+		"cortex_querier_query_duration_seconds",
+		"cortex_ingester_ingested_samples_failures_total",
+		
+		// EXTENDED MIMIR METRICS - Additional metrics for comprehensive analysis
+		"cortex_distributor_deduped_samples_total",
+		"cortex_distributor_non_ha_samples_received_total",
+		"cortex_distributor_latest_seen_sample_timestamp_seconds",
+		"cortex_ingester_chunks_created_total",
+		"cortex_ingester_series_removed_total",
+		"cortex_querier_series_fetched_total",
+		"cortex_querier_chunks_fetched_total",
+		"cortex_querier_estimated_series_count",
+		"cortex_query_scheduler_queue_duration_seconds",
+		"cortex_compactor_runs_total",
+		"cortex_ruler_queries_total",
+		
+		// PROMETHEUS FALLBACK METRICS
+		"prometheus_remote_storage_samples_in_total",
+		"prometheus_tsdb_head_series",
+		"prometheus_engine_query_samples_total",
+		"prometheus_engine_query_series_total",
+		"prometheus_tsdb_head_chunks",
+		"prometheus_tsdb_compaction_chunk_size_bytes",
+		"prometheus_tsdb_exemplar_exemplars_total",
+		"prometheus_rule_group_rules",
+		"alertmanager_notifications_total",
+		"alertmanager_alerts",
+		"http_requests_total",
 	}
 
 	for _, analyzable := range analyzableMetrics {
@@ -461,6 +495,26 @@ func (a *TrendAnalyzer) isAnalyzableMetric(metricName string) bool {
 			return true
 		}
 	}
+	
+	// Also allow metrics that contain these patterns (for dynamic discovery)
+	analyzablePatterns := []string{
+		"cortex_distributor",
+		"cortex_ingester", 
+		"cortex_querier",
+		"cortex_query_frontend",
+		"cortex_ruler",
+		"cortex_compactor",
+		"prometheus_tsdb",
+		"prometheus_engine",
+		"prometheus_remote_storage",
+	}
+	
+	for _, pattern := range analyzablePatterns {
+		if strings.Contains(metricName, pattern) {
+			return true
+		}
+	}
+	
 	return false
 }
 
@@ -494,8 +548,21 @@ func (a *TrendAnalyzer) applyMetricToLimits(limits *TenantLimits, result Analysi
 // getMetricToLimitMapping returns mapping from metric names to Mimir limit names
 func (a *TrendAnalyzer) getMetricToLimitMapping() map[string]string {
 	return map[string]string{
+		// MIMIR/CORTEX METRICS - Primary mappings for Mimir deployments
+		"cortex_distributor_received_samples_total":     "ingestion_rate",
+		"cortex_distributor_samples_in_total":           "ingestion_rate",
+		"cortex_ingester_ingested_samples_total":        "ingestion_rate",
+		"cortex_ingester_memory_series":                 "max_global_series_per_user",
+		"cortex_ingester_memory_users":                  "max_global_series_per_user",
+		"cortex_query_frontend_queries_total":           "max_samples_per_query",
+		"cortex_querier_queries_total":                  "max_samples_per_query",
+		"cortex_query_frontend_query_duration_seconds":  "max_query_length",
+		"cortex_querier_query_duration_seconds":         "max_query_length",
+		"cortex_ingester_ingested_samples_failures_total": "ingestion_rate", // Include failures in rate calculations
+		
+		// PROMETHEUS METRICS - Fallback mappings for Prometheus deployments
 		"prometheus_remote_storage_samples_in_total":    "ingestion_rate",
-		"prometheus_remote_storage_samples_burst":       "ingestion_burst_size", // Different metric for burst
+		"prometheus_remote_storage_samples_burst":       "ingestion_burst_size",
 		"prometheus_tsdb_head_series":                   "max_global_series_per_user",
 		"prometheus_engine_query_samples_total":         "max_samples_per_query",
 		"prometheus_engine_query_series_total":          "max_series_per_query",
@@ -506,6 +573,19 @@ func (a *TrendAnalyzer) getMetricToLimitMapping() map[string]string {
 		"alertmanager_notifications_total":             "alertmanager_notification_rate_limit",
 		"alertmanager_alerts":                           "alertmanager_max_alerts_count",
 		"http_requests_total":                           "request_rate",
+		
+		// ADDITIONAL MIMIR LIMITS - Extended mapping for comprehensive limit support
+		"cortex_distributor_deduped_samples_total":      "ingestion_rate",
+		"cortex_distributor_non_ha_samples_received_total": "ingestion_rate",
+		"cortex_distributor_latest_seen_sample_timestamp_seconds": "max_global_metadata_per_user",
+		"cortex_ingester_chunks_created_total":          "max_chunks_per_query",
+		"cortex_ingester_series_removed_total":          "max_global_series_per_user",
+		"cortex_querier_series_fetched_total":           "max_series_per_query",
+		"cortex_querier_chunks_fetched_total":           "max_fetched_chunks_per_query",
+		"cortex_querier_estimated_series_count":         "max_series_per_query",
+		"cortex_query_scheduler_queue_duration_seconds": "max_query_length",
+		"cortex_compactor_runs_total":                   "compactor_blocks_retention_period",
+		"cortex_ruler_queries_total":                    "ruler_max_rule_groups_per_tenant",
 	}
 }
 

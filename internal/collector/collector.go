@@ -367,25 +367,69 @@ func (c *MimirCollector) addTenantHeaders(req *http.Request) {
 // isRelevantMetric checks if a metric is relevant for limit optimization
 func (c *MimirCollector) isRelevantMetric(metricName string) bool {
 	relevantMetrics := []string{
+		// PRIMARY MIMIR METRICS - Core metrics for limit optimization
+		"cortex_distributor_received_samples_total",
+		"cortex_distributor_samples_in_total",
 		"cortex_ingester_ingested_samples_total",
 		"cortex_ingester_ingested_samples_failures_total",
 		"cortex_ingester_memory_series",
 		"cortex_ingester_memory_users",
-		"cortex_distributor_received_samples_total",
-		"cortex_distributor_samples_in_total",
 		"cortex_query_frontend_queries_total",
 		"cortex_query_frontend_query_duration_seconds",
 		"cortex_querier_queries_total",
 		"cortex_querier_query_duration_seconds",
+		
+		// EXTENDED MIMIR METRICS - Additional metrics for comprehensive analysis
+		"cortex_distributor_deduped_samples_total",
+		"cortex_distributor_non_ha_samples_received_total",
+		"cortex_distributor_latest_seen_sample_timestamp_seconds",
+		"cortex_ingester_chunks_created_total",
+		"cortex_ingester_series_removed_total",
+		"cortex_querier_series_fetched_total",
+		"cortex_querier_chunks_fetched_total",
+		"cortex_querier_estimated_series_count",
+		"cortex_query_scheduler_queue_duration_seconds",
+		"cortex_compactor_runs_total",
+		"cortex_ruler_queries_total",
+		
+		// PROMETHEUS FALLBACK METRICS
 		"prometheus_remote_storage_samples_total",
+		"prometheus_remote_storage_samples_in_total",
 		"prometheus_remote_storage_highest_timestamp_in_seconds",
 		"prometheus_tsdb_head_series",
 		"prometheus_tsdb_head_samples_appended_total",
-		// Add more relevant metrics as needed
+		"prometheus_engine_query_samples_total",
+		"prometheus_engine_query_series_total",
+		"prometheus_tsdb_head_chunks",
+		"prometheus_tsdb_compaction_chunk_size_bytes",
+		"prometheus_tsdb_exemplar_exemplars_total",
+		"prometheus_rule_group_rules",
+		"alertmanager_notifications_total",
+		"alertmanager_alerts",
+		"http_requests_total",
 	}
 	
 	for _, relevant := range relevantMetrics {
 		if strings.Contains(metricName, relevant) {
+			return true
+		}
+	}
+	
+	// Also allow metrics that contain these key patterns (for dynamic discovery)
+	relevantPatterns := []string{
+		"cortex_distributor",
+		"cortex_ingester", 
+		"cortex_querier",
+		"cortex_query_frontend",
+		"cortex_ruler",
+		"cortex_compactor",
+		"prometheus_tsdb",
+		"prometheus_engine",
+		"prometheus_remote_storage",
+	}
+	
+	for _, pattern := range relevantPatterns {
+		if strings.Contains(metricName, pattern) {
 			return true
 		}
 	}
