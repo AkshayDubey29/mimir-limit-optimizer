@@ -70,6 +70,8 @@ type MimirConfig struct {
 	ConfigMapName string `yaml:"configMapName" json:"configMapName"`
 	
 	// Whether to trigger rollout after ConfigMap changes
+	// Default: false - Mimir runtime overrides are applied automatically without restarts
+	// Set to true only if you need forced component restarts for other configuration changes
 	TriggerRollout bool `yaml:"triggerRollout" json:"triggerRollout"`
 	
 	// Components to rollout (if TriggerRollout is true)

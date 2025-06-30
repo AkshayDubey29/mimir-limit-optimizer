@@ -80,6 +80,8 @@ mimir:
   configMapName: "mimir-runtime-overrides"
 
   # Whether to trigger rollout after ConfigMap changes
+  # Default: false - Mimir runtime overrides are applied automatically without restarts
+  # Set to true only if you need forced component restarts for other configuration changes
   triggerRollout: false
 
   # Components to rollout (if triggerRollout is true)

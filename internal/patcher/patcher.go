@@ -98,10 +98,12 @@ func (p *ConfigMapPatcher) ApplyLimits(ctx context.Context, limits map[string]*a
 	// Log changes to audit trail
 	p.logChanges(currentOverrides, updatedOverrides, limits)
 
-	// Trigger rollout if configured
+	// Trigger rollout if configured (optional - runtime overrides work without restarts)
 	if p.config.Mimir.TriggerRollout {
 		if err := p.triggerRollout(ctx); err != nil {
-			p.log.Error(err, "failed to trigger rollout (continuing anyway)")
+			p.log.Error(err, "failed to trigger optional rollout (continuing anyway - runtime overrides still work)")
+		} else {
+			p.log.Info("triggered optional component rollouts", "note", "runtime overrides work without restarts")
 		}
 	}
 

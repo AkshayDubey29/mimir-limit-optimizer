@@ -1712,7 +1712,7 @@ controller:
 mimir:
   namespace: mimir
   configMapName: mimir-runtime-overrides
-  triggerRollout: true
+  triggerRollout: false  # Runtime overrides are applied without restarts
 
 tenantScoping:
   skipList:
