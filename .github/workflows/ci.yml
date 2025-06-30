@@ -96,7 +96,6 @@ jobs:
           type=semver,pattern={{version}}
           type=semver,pattern={{major}}.{{minor}}
           type=semver,pattern={{major}}
-          type=sha,prefix={{branch}}-
         labels: |
           org.opencontainers.image.title=Mimir Limit Optimizer
           org.opencontainers.image.description=Enterprise-grade Kubernetes-native controller for dynamically managing per-tenant limits in Grafana Mimir
