@@ -383,11 +383,29 @@ func (p *ConfigMapPatcher) applyLimitsToOverrides(overrides map[string]interface
 			if limitDef, exists := p.config.DynamicLimits.LimitDefinitions[limitName]; exists && limitDef.Enabled {
 				// Apply the limit value based on type
 				if limitValue != nil && !p.isZeroValue(limitValue) {
+					// CONVERT TO PROPER TYPE based on limit definition
+					convertedValue, err := p.convertLimitValue(limitValue, limitDef.Type)
+					if err != nil {
+						p.log.Error(err, "failed to convert limit value to proper type",
+							"tenant", tenant,
+							"limit", limitName,
+							"value", limitValue,
+							"type", limitDef.Type)
+						continue // Skip this limit if conversion fails
+					}
+					
 					// Check if this is actually a change
-					if existingValue, hadExisting := existingTenantConfig[limitName]; !hadExisting || existingValue != limitValue {
-						existingTenantConfig[limitName] = limitValue
+					if existingValue, hadExisting := existingTenantConfig[limitName]; !hadExisting || existingValue != convertedValue {
+						existingTenantConfig[limitName] = convertedValue // Use converted value
 						updatedLimits = append(updatedLimits, limitName)
 						hasUpdates = true
+						
+						p.log.V(2).Info("applied properly typed limit value",
+							"tenant", tenant,
+							"limit", limitName,
+							"original_value", limitValue,
+							"converted_value", convertedValue,
+							"limit_type", limitDef.Type)
 					}
 				}
 			}
@@ -424,6 +442,8 @@ func (p *ConfigMapPatcher) isZeroValue(value interface{}) bool {
 	case float64:
 		return v <= 0
 	case int64:
+		return v <= 0
+	case int:
 		return v <= 0
 	case string:
 		return v == "" || v == "0s"
@@ -662,14 +682,34 @@ func (p *ConfigMapPatcher) parseCurrentLimits(overrides map[string]interface{}) 
 	return limits
 }
 
-// convertLimitValue converts a value to the appropriate type based on limit definition
+// convertLimitValue converts a value to the appropriate type based on limit definition  
 func (p *ConfigMapPatcher) convertLimitValue(value interface{}, limitType string) (interface{}, error) {
 	switch limitType {
-	case "rate", "count", "size", "percentage":
+	case "count":
+		// COUNT LIMITS MUST BE INTEGERS (ingestion_rate, max_global_series_per_user, etc.)
+		switch v := value.(type) {
+		case float64:
+			return int64(v), nil // Convert float to integer
+		case int64:
+			return v, nil // Already integer
+		case int:
+			return int64(v), nil // Convert int to int64
+		case string:
+			if parsed, err := strconv.ParseFloat(v, 64); err == nil {
+				return int64(parsed), nil // Parse string and convert to integer
+			}
+			return nil, fmt.Errorf("cannot convert string %q to integer value", v)
+		default:
+			return nil, fmt.Errorf("unsupported value type %T for count limit", value)
+		}
+	case "rate":
+		// RATE LIMITS CAN BE FLOAT (samples per second, requests per second)
 		switch v := value.(type) {
 		case float64:
 			return v, nil
 		case int64:
+			return float64(v), nil
+		case int:
 			return float64(v), nil
 		case string:
 			if parsed, err := strconv.ParseFloat(v, 64); err == nil {
@@ -677,9 +717,44 @@ func (p *ConfigMapPatcher) convertLimitValue(value interface{}, limitType string
 			}
 			return nil, fmt.Errorf("cannot convert string %q to numeric value", v)
 		default:
-			return nil, fmt.Errorf("unsupported value type %T for numeric limit", value)
+			return nil, fmt.Errorf("unsupported value type %T for rate limit", value)
+		}
+	case "size":
+		// SIZE LIMITS SHOULD BE INTEGERS (bytes, chunk counts, etc.)
+		switch v := value.(type) {
+		case float64:
+			return int64(v), nil // Convert float to integer
+		case int64:
+			return v, nil // Already integer
+		case int:
+			return int64(v), nil
+		case string:
+			if parsed, err := strconv.ParseFloat(v, 64); err == nil {
+				return int64(parsed), nil
+			}
+			return nil, fmt.Errorf("cannot convert string %q to integer value", v)
+		default:
+			return nil, fmt.Errorf("unsupported value type %T for size limit", value)
+		}
+	case "percentage":
+		// PERCENTAGE LIMITS CAN BE FLOAT (0.0-100.0)
+		switch v := value.(type) {
+		case float64:
+			return v, nil
+		case int64:
+			return float64(v), nil
+		case int:
+			return float64(v), nil
+		case string:
+			if parsed, err := strconv.ParseFloat(v, 64); err == nil {
+				return parsed, nil
+			}
+			return nil, fmt.Errorf("cannot convert string %q to percentage value", v)
+		default:
+			return nil, fmt.Errorf("unsupported value type %T for percentage limit", value)
 		}
 	case "duration":
+		// DURATION LIMITS SHOULD BE STRINGS ("5m", "1h", etc.)
 		switch v := value.(type) {
 		case string:
 			return v, nil // Keep as string for duration values
