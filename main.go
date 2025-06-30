@@ -253,7 +253,7 @@ func runStandalone(cfg *config.Config) error {
 	collector := createStandaloneCollector(cfg)
 	
 	// Discover tenants
-	tenants, err := collector.GetTenantList(nil)
+	tenants, err := collector.GetTenantList(context.TODO())
 	if err != nil {
 		return fmt.Errorf("failed to discover tenants: %w", err)
 	}
