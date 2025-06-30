@@ -65,24 +65,20 @@ spec:
           httpGet:
             path: /healthz
             port: health
-          initialDelaySeconds: >-
-            {{.Values.healthProbes.liveness.initialDelaySeconds}}
+          initialDelaySeconds: {{.Values.healthProbes.liveness.initialDelaySeconds}}
           periodSeconds: {{.Values.healthProbes.liveness.periodSeconds}}
           timeoutSeconds: {{.Values.healthProbes.liveness.timeoutSeconds}}
-          failureThreshold: >-
-            {{.Values.healthProbes.liveness.failureThreshold}}
+          failureThreshold: {{.Values.healthProbes.liveness.failureThreshold}}
         {{- end}}
         {{- if .Values.healthProbes.readiness.enabled}}
         readinessProbe:
           httpGet:
             path: /readyz
             port: health
-          initialDelaySeconds: >-
-            {{.Values.healthProbes.readiness.initialDelaySeconds}}
+          initialDelaySeconds: {{.Values.healthProbes.readiness.initialDelaySeconds}}
           periodSeconds: {{.Values.healthProbes.readiness.periodSeconds}}
           timeoutSeconds: {{.Values.healthProbes.readiness.timeoutSeconds}}
-          failureThreshold: >-
-            {{.Values.healthProbes.readiness.failureThreshold}}
+          failureThreshold: {{.Values.healthProbes.readiness.failureThreshold}}
         {{- end}}
         resources:
           {{- toYaml .Values.resources | nindent 10}}
