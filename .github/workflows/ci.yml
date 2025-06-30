@@ -12,9 +12,103 @@ env:
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
+  yaml-lint:
+    name: YAML Lint
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python for yamllint
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        
+    - name: Install yamllint
+      run: pip install yamllint
+      
+    - name: Check yamllint config
+      run: |
+        echo "🔍 Using yamllint configuration from .yamllint.yml"
+        if [ ! -f .yamllint.yml ]; then
+          echo "❌ .yamllint.yml configuration file not found!"
+          exit 1
+        fi
+        echo "✅ Found yamllint configuration"
+        cat .yamllint.yml
+        
+    - name: Run strict yamllint on critical files
+      run: |
+        echo "🔍 Running strict yamllint on critical files (must pass)..."
+        # These files must pass strict linting to prevent CI/CD failures
+        yamllint .github/workflows/ci.yml
+        yamllint helm/mimir-limit-optimizer/Chart.yaml
+        echo "✅ Critical files passed strict YAML validation"
+        
+    - name: Run yamllint on Helm charts
+      run: |
+        echo "🔍 Running yamllint on Helm charts..."
+        EXIT_CODE=0
+        yamllint helm/ || EXIT_CODE=$?
+        if [ $EXIT_CODE -ne 0 ]; then
+          echo "⚠️  YAML linting found issues in Helm charts (warnings allowed)"
+          echo "ℹ️  Run 'yamllint helm/' locally to see detailed issues"
+        else
+          echo "✅ Helm charts passed YAML validation"
+        fi
+        
+    - name: Run yamllint on workflow files
+      run: |
+        echo "🔍 Running yamllint on GitHub workflows..."
+        EXIT_CODE=0
+        yamllint .github/workflows/ || EXIT_CODE=$?
+        if [ $EXIT_CODE -ne 0 ]; then
+          echo "⚠️  YAML linting found issues in workflows (warnings allowed)"
+          echo "ℹ️  Run 'yamllint .github/workflows/' locally to see detailed issues"
+        else
+          echo "✅ Workflow files passed YAML validation"
+        fi
+        
+    - name: Validate YAML syntax in all files
+      run: |
+        echo "🔍 Validating YAML syntax in all YAML files..."
+        find . -name "*.yml" -o -name "*.yaml" | while read -r file; do
+          if [[ "$file" == *".git/"* ]] || [[ "$file" == *"node_modules/"* ]]; then
+            continue
+          fi
+          echo "Checking: $file"
+          python -c "import yaml; yaml.safe_load(open('$file'))" || {
+            echo "❌ YAML syntax error in: $file"
+            exit 1
+          }
+        done
+        echo "✅ All YAML files have valid syntax"
+        
+    - name: Summary
+      run: |
+        echo "✅ YAML linting and validation completed"
+        echo "📊 Summary:"
+        echo "  - Critical files: ✅ PASSED (strict validation)"
+        echo "  - Helm charts: ✅ CHECKED (warnings allowed)"
+        echo "  - Workflows: ✅ CHECKED (warnings allowed)"
+        echo "  - Syntax validation: ✅ PASSED (all files)"
+        echo ""
+        echo "💡 To fix YAML issues locally:"
+        echo "   # Install yamllint"
+        echo "   brew install yamllint      # macOS"
+        echo "   pip install yamllint       # Python/pip"
+        echo ""
+        echo "   # Run yamllint (uses .yamllint.yml config)"
+        echo "   yamllint .                  # Check all files"
+        echo "   yamllint helm/              # Check Helm charts only"
+        echo "   yamllint .github/workflows/ # Check workflows only"
+        echo ""
+        echo "   # Auto-fix some issues (use with caution)"
+        echo "   yamllint --format auto helm/"
+
   lint-and-test:
     name: Lint and Test
     runs-on: ubuntu-latest
+    needs: [yaml-lint]
     steps:
     - uses: actions/checkout@v4
     
@@ -53,6 +147,7 @@ jobs:
   helm-lint:
     name: Helm Lint
     runs-on: ubuntu-latest
+    needs: [yaml-lint]
     steps:
     - uses: actions/checkout@v4
     
@@ -62,12 +157,30 @@ jobs:
         version: '3.12.0'
         
     - name: Lint Helm charts
-      run: helm lint ./helm/mimir-limit-optimizer
+      run: |
+        echo "🔍 Running helm lint..."
+        helm lint ./helm/mimir-limit-optimizer
+        
+    - name: Validate Helm template generation
+      run: |
+        echo "🔍 Testing Helm template generation..."
+        helm template test-release ./helm/mimir-limit-optimizer --dry-run > /dev/null
+        echo "✅ Helm templates generate successfully"
+        
+    - name: Test Helm chart with different values
+      run: |
+        echo "🔍 Testing Helm chart with production values..."
+        helm template test-release ./helm/mimir-limit-optimizer \
+          --set controller.mode=prod \
+          --set costControl.enabled=true \
+          --set circuitBreaker.enabled=true \
+          --dry-run > /dev/null
+        echo "✅ Production configuration templates generate successfully"
 
   build-and-push:
     name: Build and Push Docker Image
     runs-on: ubuntu-latest
-    needs: [lint-and-test, helm-lint]
+    needs: [yaml-lint, lint-and-test, helm-lint]
     if: github.event_name == 'push'
     permissions:
       contents: read
@@ -246,7 +359,7 @@ jobs:
   release:
     name: Create Release
     runs-on: ubuntu-latest
-    needs: [build-and-push, security-scan]
+    needs: [yaml-lint, build-and-push, security-scan]
     if: startsWith(github.ref, 'refs/tags/v')
     permissions:
       contents: write

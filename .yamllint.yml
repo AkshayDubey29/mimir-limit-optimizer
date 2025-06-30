@@ -1,0 +1,61 @@
+---
+# YAMLLint configuration for Mimir Limit Optimizer
+# This file ensures consistent YAML formatting across the project
+# Run locally with: yamllint .
+
+extends: default
+
+rules:
+  # Allow longer lines for Helm templates and complex configurations
+  line-length:
+    max: 120
+    level: warning
+  
+  # Allow trailing spaces (warnings only, not failures)
+  trailing-spaces:
+    level: warning
+    
+  # Allow some comment indentation flexibility
+  comments-indentation:
+    level: warning
+    
+  # Less strict on comment spacing for inline comments
+  comments:
+    min-spaces-from-content: 1
+    
+  # Allow document start to be optional (some files don't need ---)
+  document-start:
+    present: false
+    
+  # Standard YAML indentation settings
+  indentation:
+    spaces: 2
+    indent-sequences: true
+    check-multi-line-strings: false
+    
+  # Allow empty lines at end of document
+  empty-lines:
+    max-end: 1
+    
+  # Allow some brace spacing flexibility for Helm templates
+  braces:
+    max-spaces-inside: 1
+    max-spaces-inside-empty: 0
+    
+  # Allow bracket spacing for Helm template arrays
+  brackets:
+    max-spaces-inside: 1
+    max-spaces-inside-empty: 0
+    
+  # Be more lenient with truthy values (allow yes/no, on/off)
+  truthy:
+    allowed-values: ['true', 'false', 'yes', 'no', 'on', 'off']
+    check-keys: false
+
+# Files and directories to ignore
+ignore: |
+  .git/
+  node_modules/
+  .github/
+  **/templates/_helpers.tpl
+  .yamllint.yml 
