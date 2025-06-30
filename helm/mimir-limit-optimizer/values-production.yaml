@@ -1,0 +1,84 @@
+# Production Environment Values for Mimir Limit Optimizer
+# High-volume audit logging with aggressive retention for performance
+
+# Controller configuration for production
+controller:
+  mode: "prod"  # Enable production mode for actual limit enforcement
+  bufferPercentage: 20
+  updateInterval: "3m"  # More frequent updates for production
+
+# Enhanced resource allocation for production workloads
+resources:
+  limits:
+    cpu: 1000m
+    memory: 1Gi
+  requests:
+    cpu: 200m
+    memory: 256Mi
+
+# Production audit log configuration with aggressive retention
+auditLog:
+  enabled: true
+  storageType: "configmap"
+  maxEntries: 5000  # Higher limit for production audit volume
+  configMapName: "mimir-limit-optimizer-audit"
+
+  # Production-optimized retention policies
+  retention:
+    # Keep audit logs for 7 days (compliance requirement)
+    retentionPeriod: "168h"
+    
+    # Higher entry limit for production volume
+    maxEntries: 5000
+    
+    # Larger size limit (closer to 1MB Kubernetes limit)
+    maxSizeBytes: 900000  # 900KB
+    
+    # Frequent cleanup to handle high audit volume
+    cleanupInterval: "30m"
+    
+    # Larger batch size for efficient cleanup
+    cleanupBatchSize: 200
+    
+    # Earlier emergency cleanup to prevent performance issues
+    emergencyThresholdPercent: 85.0
+
+# Circuit breaker enabled for production protection
+circuitBreaker:
+  enabled: true
+  runtimeEnabled: true
+  mode: "auto"
+
+# Cost control enabled for production budget management
+costControl:
+  enabled: true
+  enforceBudget: true  # Enable budget enforcement in production
+
+# Enhanced monitoring for production
+serviceMonitor:
+  enabled: true
+  interval: 15s  # More frequent metrics collection
+
+# Leader election for high availability
+leaderElection:
+  enabled: true
+
+# Production logging
+logging:
+  level: "info"
+  format: "json"
+
+# Health probes optimized for production
+healthProbes:
+  liveness:
+    enabled: true
+    initialDelaySeconds: 60
+    periodSeconds: 30
+    timeoutSeconds: 10
+    failureThreshold: 3
+  readiness:
+    enabled: true
+    initialDelaySeconds: 15
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3 

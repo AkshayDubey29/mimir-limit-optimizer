@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"sync"
 	"time"
 
@@ -251,13 +252,11 @@ func (c *ConfigMapAuditLogger) LogEntry(entry *AuditEntry) error {
 	baseDelay := 100 * time.Millisecond
 
 	for attempt := 0; attempt < maxRetries; attempt++ {
-		// Get or create ConfigMap (fresh read each time)
 		configMap, err := c.getOrCreateConfigMap(ctx)
 		if err != nil {
-			return fmt.Errorf("failed to get/create audit ConfigMap: %w", err)
+			return fmt.Errorf("failed to get or create audit ConfigMap: %w", err)
 		}
 
-		// Parse existing entries
 		entries, err := c.parseEntries(configMap)
 		if err != nil {
 			return fmt.Errorf("failed to parse existing audit entries: %w", err)
@@ -266,53 +265,165 @@ func (c *ConfigMapAuditLogger) LogEntry(entry *AuditEntry) error {
 		// Add new entry
 		entries = append(entries, entry)
 
-		// Trim if necessary
-		if len(entries) > c.maxEntries {
-			removeCount := len(entries) - c.maxEntries
-			entries = entries[removeCount:]
+		// Apply retention policies before saving
+		entries, shouldEmergencyCleanup := c.applyRetentionPolicies(entries)
+
+		// Log emergency cleanup if it occurred
+		if shouldEmergencyCleanup {
+			c.log.Info("emergency cleanup triggered during audit entry addition",
+				"reason", "retention_policies_exceeded",
+				"remaining_entries", len(entries))
 		}
 
-		// Try to update ConfigMap
+		// Try to update ConfigMap with retained entries
 		if err := c.updateConfigMap(ctx, configMap, entries); err != nil {
 			// Check if it's a conflict error
 			if apierrors.IsConflict(err) {
 				if attempt < maxRetries-1 {
 					// Wait with exponential backoff before retrying
 					delay := time.Duration(1<<attempt) * baseDelay
-					c.log.V(1).Info("audit ConfigMap conflict, retrying",
+					c.log.V(1).Info("audit ConfigMap conflict during LogEntry, retrying",
 						"attempt", attempt+1,
 						"delay", delay,
-						"tenant", entry.Tenant)
+						"entry_id", entry.ID)
 					time.Sleep(delay)
 					continue
 				}
 				// Max retries exceeded
-				c.log.Error(err, "failed to update audit ConfigMap after retries, dropping audit entry",
-					"tenant", entry.Tenant,
-					"action", entry.Action,
-					"attempts", maxRetries)
-				// Don't return error - just log the failure and continue
-				// Audit logging failure shouldn't break the main operation
-				return nil
+				c.log.Error(err, "failed to log audit entry after retries",
+					"attempts", maxRetries,
+					"entry_id", entry.ID)
+				return fmt.Errorf("failed to log audit entry after %d retries: %w", maxRetries, err)
 			}
 			// Non-conflict error, return immediately
 			return fmt.Errorf("failed to update audit ConfigMap: %w", err)
 		}
 
 		// Success
-		c.log.Info("audit entry logged to ConfigMap",
+		c.log.V(1).Info("audit entry logged to ConfigMap",
 			"id", entry.ID,
 			"tenant", entry.Tenant,
 			"action", entry.Action,
-			"attempt", attempt+1)
+			"success", entry.Success,
+			"attempt", attempt+1,
+			"total_entries", len(entries))
 		return nil
 	}
 
 	// This should never be reached due to the logic above, but just in case
-	c.log.Error(nil, "unexpected end of retry loop for audit logging",
-		"tenant", entry.Tenant,
-		"action", entry.Action)
-	return nil
+	return fmt.Errorf("unexpected end of retry loop for audit LogEntry")
+}
+
+// applyRetentionPolicies applies all retention policies and returns cleaned entries
+func (c *ConfigMapAuditLogger) applyRetentionPolicies(entries []*AuditEntry) ([]*AuditEntry, bool) {
+	originalCount := len(entries)
+	emergencyCleanup := false
+
+	// Get retention config (use defaults if not available)
+	retentionPeriod := 7 * 24 * time.Hour  // Default: 7 days
+	maxEntries := c.maxEntries             // Use configured maxEntries
+	maxSizeBytes := int64(800 * 1024)      // Default: 800KB
+	emergencyThreshold := 90.0             // Default: 90%
+
+	// TODO: Get these from config once retention config is passed to the logger
+	// For now, using sensible defaults
+
+	// 1. Apply time-based retention
+	cutoff := time.Now().Add(-retentionPeriod)
+	var timeFiltered []*AuditEntry
+	for _, entry := range entries {
+		if entry.Timestamp.After(cutoff) {
+			timeFiltered = append(timeFiltered, entry)
+		}
+	}
+
+	// 2. Apply count-based retention (keep most recent entries)
+	if len(timeFiltered) > maxEntries {
+		// Sort by timestamp (newest first) to keep most recent
+		sort.Slice(timeFiltered, func(i, j int) bool {
+			return timeFiltered[i].Timestamp.After(timeFiltered[j].Timestamp)
+		})
+		timeFiltered = timeFiltered[:maxEntries]
+		emergencyCleanup = true
+	}
+
+	// 3. Apply size-based retention
+	sizeFiltered := c.applySizeBasedRetention(timeFiltered, maxSizeBytes, emergencyThreshold)
+	if len(sizeFiltered) < len(timeFiltered) {
+		emergencyCleanup = true
+	}
+
+	cleanedCount := originalCount - len(sizeFiltered)
+	if cleanedCount > 0 {
+		c.log.V(1).Info("retention policies applied",
+			"original_entries", originalCount,
+			"cleaned_entries", cleanedCount,
+			"remaining_entries", len(sizeFiltered),
+			"emergency_cleanup", emergencyCleanup)
+	}
+
+	return sizeFiltered, emergencyCleanup
+}
+
+// applySizeBasedRetention removes entries to stay under size limit
+func (c *ConfigMapAuditLogger) applySizeBasedRetention(entries []*AuditEntry, maxSizeBytes int64, emergencyThreshold float64) []*AuditEntry {
+	if len(entries) == 0 {
+		return entries
+	}
+
+	// Calculate current size
+	currentSize := c.calculateEntriesSize(entries)
+	if currentSize <= maxSizeBytes {
+		return entries // Within limits
+	}
+
+	// Sort by timestamp (newest first) to keep most recent entries
+	sort.Slice(entries, func(i, j int) bool {
+		return entries[i].Timestamp.After(entries[j].Timestamp)
+	})
+
+	// Remove oldest entries until we're under the limit
+	var retained []*AuditEntry
+	runningSize := int64(0)
+	targetSize := int64(float64(maxSizeBytes) * (emergencyThreshold / 100.0))
+
+	for _, entry := range entries {
+		entrySize := c.calculateEntrySize(entry)
+		if runningSize+entrySize <= targetSize {
+			retained = append(retained, entry)
+			runningSize += entrySize
+		} else {
+			break // Would exceed target size
+		}
+	}
+
+	c.log.Info("size-based retention applied",
+		"original_size_bytes", currentSize,
+		"target_size_bytes", targetSize,
+		"final_size_bytes", runningSize,
+		"entries_removed", len(entries)-len(retained))
+
+	return retained
+}
+
+// calculateEntriesSize estimates the size of all entries when marshaled to JSON
+func (c *ConfigMapAuditLogger) calculateEntriesSize(entries []*AuditEntry) int64 {
+	data, err := json.Marshal(entries)
+	if err != nil {
+		// Fallback estimation: 500 bytes per entry average
+		return int64(len(entries) * 500)
+	}
+	return int64(len(data))
+}
+
+// calculateEntrySize estimates the size of a single entry when marshaled to JSON
+func (c *ConfigMapAuditLogger) calculateEntrySize(entry *AuditEntry) int64 {
+	data, err := json.Marshal(entry)
+	if err != nil {
+		// Fallback estimation: 500 bytes per entry
+		return 500
+	}
+	return int64(len(data))
 }
 
 // GetEntries retrieves audit entries from ConfigMap

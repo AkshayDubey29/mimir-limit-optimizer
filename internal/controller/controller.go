@@ -155,39 +155,97 @@ type PeriodicReconciler struct {
 	stopCh     chan struct{}
 }
 
-// Start starts the periodic reconciliation
+// Start begins the reconciliation loop
 func (pr *PeriodicReconciler) Start(ctx context.Context) error {
 	pr.stopCh = make(chan struct{})
-	
 	pr.Log.Info("starting periodic reconciler", "interval", pr.Interval)
 	
-	ticker := time.NewTicker(pr.Interval)
-	defer ticker.Stop()
-	
-	// Initial reconciliation
-	if err := pr.Controller.reconcile(ctx); err != nil {
-		pr.Log.Error(err, "initial reconciliation failed")
-	}
-	
-	for {
-		select {
-		case <-ctx.Done():
-			pr.Log.Info("context cancelled, stopping reconciler")
-			return nil
-		case <-pr.stopCh:
-			pr.Log.Info("stop signal received, stopping reconciler")
-			return nil
-		case <-ticker.C:
-			if err := pr.Controller.reconcile(ctx); err != nil {
-				pr.Log.Error(err, "reconciliation failed")
-				metrics.ReconcileMetricsInstance.IncReconcileTotal("error")
+	go func() {
+		defer close(pr.stopCh)
+		ticker := time.NewTicker(pr.Interval)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ctx.Done():
+				pr.Log.Info("stopping periodic reconciler due to context cancellation")
+				return
+			case <-pr.stopCh:
+				pr.Log.Info("stopping periodic reconciler due to stop signal")
+				return
+			case <-ticker.C:
+				if err := pr.Controller.reconcile(ctx); err != nil {
+					pr.Log.Error(err, "reconciliation failed")
+				}
 			}
 		}
+	}()
+	
+	// Start audit log cleanup goroutine if audit logging is enabled
+	if pr.Controller.Config.AuditLog.Enabled {
+		pr.startAuditCleanup(ctx)
+	}
+
+	return nil
+}
+
+// startAuditCleanup starts a background goroutine for audit log cleanup
+func (pr *PeriodicReconciler) startAuditCleanup(ctx context.Context) {
+	cleanupInterval := pr.Controller.Config.AuditLog.Retention.CleanupInterval
+	if cleanupInterval <= 0 {
+		cleanupInterval = 1 * time.Hour // Default: 1 hour
+	}
+	
+	pr.Log.Info("starting audit log cleanup goroutine", 
+		"interval", cleanupInterval,
+		"storage_type", pr.Controller.Config.AuditLog.StorageType)
+	
+	go func() {
+		ticker := time.NewTicker(cleanupInterval)
+		defer ticker.Stop()
+		
+		for {
+			select {
+			case <-ctx.Done():
+				pr.Log.Info("stopping audit cleanup goroutine due to context cancellation")
+				return
+			case <-pr.stopCh:
+				pr.Log.Info("stopping audit cleanup goroutine due to stop signal")
+				return
+			case <-ticker.C:
+				pr.runAuditCleanup(ctx)
+			}
+		}
+	}()
+}
+
+// runAuditCleanup performs scheduled audit log cleanup
+func (pr *PeriodicReconciler) runAuditCleanup(ctx context.Context) {
+	retentionPeriod := pr.Controller.Config.AuditLog.Retention.RetentionPeriod
+	if retentionPeriod <= 0 {
+		retentionPeriod = 7 * 24 * time.Hour // Default: 7 days
+	}
+	
+	cutoff := time.Now().Add(-retentionPeriod)
+	
+	pr.Log.V(1).Info("running scheduled audit log cleanup",
+		"retention_period", retentionPeriod,
+		"cutoff_time", cutoff,
+		"storage_type", pr.Controller.Config.AuditLog.StorageType)
+	
+	if err := pr.Controller.AuditLogger.PurgeOldEntries(ctx, cutoff); err != nil {
+		pr.Log.Error(err, "scheduled audit log cleanup failed",
+			"retention_period", retentionPeriod,
+			"storage_type", pr.Controller.Config.AuditLog.StorageType)
+	} else {
+		pr.Log.V(1).Info("scheduled audit log cleanup completed",
+			"retention_period", retentionPeriod)
 	}
 }
 
-// Stop stops the periodic reconciliation
+// Stop stops the periodic reconciliation and cleanup goroutines
 func (pr *PeriodicReconciler) Stop() {
+	pr.Log.Info("stopping periodic reconciler")
 	if pr.stopCh != nil {
 		close(pr.stopCh)
 	}
@@ -364,9 +422,24 @@ func (r *MimirLimitController) reconcile(ctx context.Context) error {
 	
 	// Step 11: Cleanup old audit entries (if enabled)
 	if r.Config.AuditLog.Enabled {
-		cutoff := time.Now().Add(-7 * 24 * time.Hour) // Keep 7 days of audit logs
+		retentionPeriod := r.Config.AuditLog.Retention.RetentionPeriod
+		if retentionPeriod <= 0 {
+			retentionPeriod = 7 * 24 * time.Hour // Default fallback
+		}
+		cutoff := time.Now().Add(-retentionPeriod)
+		
+		r.Log.V(1).Info("running audit log retention cleanup",
+			"retention_period", retentionPeriod,
+			"cutoff_time", cutoff,
+			"storage_type", r.Config.AuditLog.StorageType)
+		
 		if err := r.AuditLogger.PurgeOldEntries(ctx, cutoff); err != nil {
-			r.Log.Error(err, "failed to purge old audit entries")
+			r.Log.Error(err, "failed to purge old audit entries",
+				"retention_period", retentionPeriod,
+				"storage_type", r.Config.AuditLog.StorageType)
+		} else {
+			r.Log.V(1).Info("audit log retention cleanup completed",
+				"retention_period", retentionPeriod)
 		}
 	}
 	

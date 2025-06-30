@@ -212,6 +212,30 @@ type AuditLogConfig struct {
 	
 	// External storage configuration
 	ExternalStorage map[string]interface{} `yaml:"externalStorage" json:"externalStorage"`
+	
+	// Retention policies
+	Retention AuditRetentionConfig `yaml:"retention" json:"retention"`
+}
+
+// AuditRetentionConfig defines retention policies for audit logs
+type AuditRetentionConfig struct {
+	// Time-based retention (how long to keep entries)
+	RetentionPeriod time.Duration `yaml:"retentionPeriod" json:"retentionPeriod"`
+	
+	// Maximum number of entries to keep (overrides maxEntries if set)
+	MaxEntries int `yaml:"maxEntries" json:"maxEntries"`
+	
+	// Maximum size for ConfigMap storage (in bytes)
+	MaxSizeBytes int64 `yaml:"maxSizeBytes" json:"maxSizeBytes"`
+	
+	// Cleanup interval (how often to run retention cleanup)
+	CleanupInterval time.Duration `yaml:"cleanupInterval" json:"cleanupInterval"`
+	
+	// Batch size for cleanup operations
+	CleanupBatchSize int `yaml:"cleanupBatchSize" json:"cleanupBatchSize"`
+	
+	// Emergency cleanup threshold (trigger immediate cleanup at this percentage)
+	EmergencyThresholdPercent float64 `yaml:"emergencyThresholdPercent" json:"emergencyThresholdPercent"`
 }
 
 type SyntheticConfig struct {
@@ -733,6 +757,15 @@ func GetDefaultConfig() *Config {
 			Enabled:     true,
 			StorageType: "memory",
 			MaxEntries:  1000,
+			ConfigMapName: "mimir-limit-optimizer-audit",
+			Retention: AuditRetentionConfig{
+				RetentionPeriod:           7 * 24 * time.Hour,  // 7 days
+				MaxEntries:               1000,                 // Override MaxEntries above
+				MaxSizeBytes:             800 * 1024,           // 800KB (safe margin under 1MB ConfigMap limit)
+				CleanupInterval:          1 * time.Hour,        // Cleanup every hour
+				CleanupBatchSize:         100,                  // Process 100 entries at a time
+				EmergencyThresholdPercent: 90.0,                // Emergency cleanup at 90% capacity
+			},
 		},
 		Synthetic: SyntheticConfig{
 			Enabled:     false,

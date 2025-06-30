@@ -40,5 +40,15 @@ circuitBreaker:
 # Audit logging
 auditLog:
   enabled: true
-  storageType: memory
-  maxEntries: 1000 
+  storageType: "configmap"  # "memory", "configmap", or "external"
+  maxEntries: 2000         # Maximum entries (fallback limit)
+  configMapName: "mimir-limit-optimizer-audit"
+  
+  # Comprehensive retention policies
+  retention:
+    retentionPeriod: "168h"        # 7 days (time-based retention)
+    maxEntries: 2000               # Override maxEntries above
+    maxSizeBytes: 819200           # 800KB (safe margin under 1MB ConfigMap limit)
+    cleanupInterval: "1h"          # Cleanup every hour
+    cleanupBatchSize: 100          # Process 100 entries at a time
+    emergencyThresholdPercent: 90.0 # Emergency cleanup at 90% capacity 

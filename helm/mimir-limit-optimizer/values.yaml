@@ -255,7 +255,7 @@ limits:
         ingestion_rate: 10000
         max_series: 100000
 
-# Audit logging configuration
+# Audit logging configuration with comprehensive retention
 auditLog:
   # Enable audit logging
   enabled: true
@@ -264,11 +264,55 @@ auditLog:
   # Use "configmap" for persistent reporting and easy querying
   storageType: "configmap"
 
-  # Maximum entries to keep in memory
-  maxEntries: 1000
+  # Maximum entries to keep (fallback limit)
+  maxEntries: 2000
 
   # ConfigMap name for audit storage (if storageType is "configmap")
   configMapName: "mimir-limit-optimizer-audit"
+
+  # External storage configuration (for future use)
+  externalStorage: {}
+
+  # Comprehensive retention policies to prevent indefinite growth
+  retention:
+    # Time-based retention - how long to keep entries
+    retentionPeriod: "168h"  # 7 days
+
+    # Count-based retention - maximum number of entries to keep
+    # This overrides the root maxEntries setting
+    maxEntries: 2000
+
+    # Size-based retention - maximum ConfigMap size in bytes
+    # Set to 800KB (safe margin under 1MB Kubernetes ConfigMap limit)
+    maxSizeBytes: 819200
+
+    # Cleanup scheduling - how often to run retention cleanup
+    cleanupInterval: "1h"
+
+    # Batch processing - how many entries to process at once during cleanup
+    cleanupBatchSize: 100
+
+    # Emergency cleanup threshold - trigger immediate cleanup at this percentage of capacity
+    emergencyThresholdPercent: 90.0
+
+# Production Environment Settings:
+# For production with higher audit volume, consider:
+#   retention:
+#     retentionPeriod: "168h"     # 7 days
+#     maxEntries: 5000            # Higher entry limit
+#     maxSizeBytes: 900000        # 900KB (closer to 1MB limit)
+#     cleanupInterval: "30m"      # More frequent cleanup
+#     cleanupBatchSize: 200       # Larger batches
+#     emergencyThresholdPercent: 85.0  # Earlier emergency cleanup
+
+# Development Environment Settings:
+# For development with lower audit volume:
+#   retention:
+#     retentionPeriod: "24h"      # 1 day
+#     maxEntries: 500             # Lower entry limit
+#     maxSizeBytes: 409600        # 400KB
+#     cleanupInterval: "2h"       # Less frequent cleanup
+#     emergencyThresholdPercent: 90.0
 
 # Dynamic Limits Configuration (v2.0.0+ feature)
 dynamicLimits:
