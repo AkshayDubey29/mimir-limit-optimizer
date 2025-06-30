@@ -1,3 +1,5 @@
+
+var Version = "1.2.5"
 // Mimir Limit Optimizer v1.0.0
 // Enterprise-grade guard rail system for Grafana Mimir
 package main
