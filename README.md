@@ -1,9 +1,27 @@
 # 🚀 Mimir Limit Optimizer: Enterprise Guard Rail System
 
+<div align="center">
+
+[![CI/CD Pipeline](https://github.com/AkshayDubey29/mimir-limit-optimizer/actions/workflows/ci.yml/badge.svg)](https://github.com/AkshayDubey29/mimir-limit-optimizer/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/AkshayDubey29/mimir-limit-optimizer/branch/main/graph/badge.svg)](https://codecov.io/gh/AkshayDubey29/mimir-limit-optimizer)
+[![Go Report Card](https://goreportcard.com/badge/github.com/AkshayDubey29/mimir-limit-optimizer)](https://goreportcard.com/report/github.com/AkshayDubey29/mimir-limit-optimizer)
+[![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=AkshayDubey29_mimir-limit-optimizer&metric=security_rating)](https://sonarcloud.io/summary/new_code?id=AkshayDubey29_mimir-limit-optimizer)
+
+[![GitHub release (latest SemVer)](https://img.shields.io/github/v/release/AkshayDubey29/mimir-limit-optimizer?sort=semver&color=green)](https://github.com/AkshayDubey29/mimir-limit-optimizer/releases)
+[![Docker Image Size](https://img.shields.io/docker/image-size/ghcr.io/akshaydubey29/mimir-limit-optimizer/latest?label=Docker%20Image)](https://github.com/AkshayDubey29/mimir-limit-optimizer/pkgs/container/mimir-limit-optimizer)
+[![GitHub stars](https://img.shields.io/github/stars/AkshayDubey29/mimir-limit-optimizer?style=social)](https://github.com/AkshayDubey29/mimir-limit-optimizer/stargazers)
+[![GitHub forks](https://img.shields.io/github/forks/AkshayDubey29/mimir-limit-optimizer?style=social)](https://github.com/AkshayDubey29/mimir-limit-optimizer/network/members)
+
 [![Go](https://img.shields.io/badge/Go-1.21+-00ADD8?style=for-the-badge&logo=go)](https://golang.org/)
 [![Kubernetes](https://img.shields.io/badge/Kubernetes-1.24+-326ce5?style=for-the-badge&logo=kubernetes)](https://kubernetes.io/)
 [![Helm](https://img.shields.io/badge/Helm-3.0+-0F1689?style=for-the-badge&logo=helm)](https://helm.sh/)
 [![License](https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge)](LICENSE)
+
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=for-the-badge)](CONTRIBUTING.md)
+[![GitHub issues](https://img.shields.io/github/issues/AkshayDubey29/mimir-limit-optimizer?style=for-the-badge)](https://github.com/AkshayDubey29/mimir-limit-optimizer/issues)
+[![GitHub pull requests](https://img.shields.io/github/issues-pr/AkshayDubey29/mimir-limit-optimizer?style=for-the-badge)](https://github.com/AkshayDubey29/mimir-limit-optimizer/pulls)
+
+</div>
 
 **Mimir Limit Optimizer** is an **enterprise-grade Kubernetes-native controller** that transforms Grafana Mimir into a **self-protecting, cost-aware, and intelligently optimized** observability platform. It acts as a comprehensive **Guard Rail for Mimir**, providing real-time protection against metric blasts, automated cost control, and intelligent performance optimization.
 
