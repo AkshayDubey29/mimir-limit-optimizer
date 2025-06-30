@@ -5,7 +5,7 @@ This document lists the maintainers of the Mimir Limit Optimizer project.
 ## Primary Maintainer
 
 **Akshay Dubey**  
-- GitHub: [@akshaydubey2912](https://github.com/akshaydubey2912)
+- GitHub: [@AkshayDubey29](https://github.com/AkshayDubey29)
 - Email: akshaydubey2912@gmail.com
 - Role: Project Lead & Primary Maintainer
 - Responsibilities:

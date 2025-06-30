@@ -90,7 +90,7 @@ func main() {
 		},
 		HealthProbeBindAddress: probeAddr,
 		LeaderElection:         enableLeaderElection,
-		LeaderElectionID:       "mimir-limit-optimizer.tapasyadubey.github.io",
+		LeaderElectionID:       "mimir-limit-optimizer.akshaydubey29.github.io",
 	})
 	if err != nil {
 		setupLog.Error(err, "unable to start manager")

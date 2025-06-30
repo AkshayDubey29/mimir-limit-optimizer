@@ -810,7 +810,7 @@ curl -s http://mimir-limit-optimizer:8080/debug/alerting/status
 
 ```bash
 # Clone the repository
-git clone https://github.com/tapasyadubey/mimir-limit-optimizer.git
+git clone https://github.com/AkshayDubey29/mimir-limit-optimizer.git
 cd mimir-limit-optimizer
 
 # Build the Docker image
