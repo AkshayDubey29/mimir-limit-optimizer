@@ -4,12 +4,14 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"net/http"
 	"os"
 	"time"
 
+	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -93,7 +95,7 @@ func main() {
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
 
 	// Load configuration
-	cfg, err := config.LoadConfig()
+	cfg, err := config.LoadConfigFromFile(configFile)
 	if err != nil {
 		setupLog.Error(err, "unable to load config")
 		os.Exit(1)
@@ -110,6 +112,18 @@ func main() {
 		"mode", cfg.Mode,
 		"updateInterval", cfg.UpdateInterval)
 
+	// Check if we can run in standalone mode (without Kubernetes)
+	standaloneMode := canRunStandalone(cfg)
+	if standaloneMode {
+		setupLog.Info("Running in standalone mode - no Kubernetes connectivity required")
+		if err := runStandalone(cfg); err != nil {
+			setupLog.Error(err, "failed to run standalone")
+			os.Exit(1)
+		}
+		return
+	}
+
+	// Normal Kubernetes mode
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme: scheme,
 		Metrics: server.Options{
@@ -189,4 +203,161 @@ func performHealthCheck(probeAddr string) error {
 	}
 	
 	return nil
+}
+
+// canRunStandalone determines if the system can run without Kubernetes connectivity
+func canRunStandalone(cfg *config.Config) bool {
+	// Can run standalone if:
+	// 1. We have fallback tenants configured OR synthetic mode is enabled
+	// 2. AND we're in dry-run mode (not applying changes to Kubernetes)
+	// 3. AND we're not using Kubernetes service discovery
+	
+	hasFallbackTenants := len(cfg.MetricsDiscovery.TenantDiscovery.FallbackTenants) > 0
+	hasSyntheticMode := cfg.MetricsDiscovery.TenantDiscovery.EnableSynthetic || cfg.Synthetic.Enabled
+	isDryRun := cfg.Mode == "dry-run"
+	noKubernetesDiscovery := !cfg.MetricsDiscovery.Enabled
+	
+	// We can run standalone if we have tenant sources that don't require Kubernetes
+	// and we're not applying changes to Kubernetes
+	// Note: Having a metrics endpoint is fine - we can still make HTTP calls without Kubernetes
+	canRunWithoutK8s := (hasFallbackTenants || hasSyntheticMode) && isDryRun && noKubernetesDiscovery
+	
+	return canRunWithoutK8s
+}
+
+// runStandalone runs the optimizer in standalone mode without Kubernetes
+func runStandalone(cfg *config.Config) error {
+	setupLog.Info("Initializing standalone mode",
+		"hasFallbackTenants", len(cfg.MetricsDiscovery.TenantDiscovery.FallbackTenants),
+		"syntheticEnabled", cfg.MetricsDiscovery.TenantDiscovery.EnableSynthetic,
+		"metricsTenantID", cfg.MetricsDiscovery.TenantDiscovery.MetricsTenantID,
+		"metricsEndpoint", cfg.MetricsEndpoint,
+		"mode", cfg.Mode)
+	
+	// Initialize metrics
+	if err := metrics.RegisterMetrics(); err != nil {
+		return fmt.Errorf("unable to register metrics: %w", err)
+	}
+	
+	// Test metrics connectivity if endpoint is configured
+	if cfg.MetricsEndpoint != "" {
+		setupLog.Info("Testing metrics connectivity with tenant headers")
+		if err := testMetricsConnectivity(cfg); err != nil {
+			setupLog.Info("Metrics connectivity test failed, falling back to tenant discovery", "error", err)
+		} else {
+			setupLog.Info("Metrics connectivity test successful")
+		}
+	}
+	
+	// Create a synthetic collector for tenant discovery
+	collector := createStandaloneCollector(cfg)
+	
+	// Discover tenants
+	tenants, err := collector.GetTenantList(nil)
+	if err != nil {
+		return fmt.Errorf("failed to discover tenants: %w", err)
+	}
+	
+	setupLog.Info("Discovered tenants in standalone mode", 
+		"count", len(tenants), 
+		"tenants", tenants)
+	
+	// In standalone mode, we just demonstrate tenant discovery and exit
+	// This shows that the fallback system works
+	setupLog.Info("Standalone mode demonstration complete - tenant discovery successful")
+	
+	// In a real scenario, you might want to:
+	// 1. Collect synthetic metrics
+	// 2. Calculate recommended limits
+	// 3. Output recommendations to a file
+	// 4. Set up a web server to serve the recommendations
+	
+	return nil
+}
+
+// createStandaloneCollector creates a collector that can work without Kubernetes
+func createStandaloneCollector(cfg *config.Config) standaloneCollector {
+	return standaloneCollector{
+		cfg: cfg,
+		log: setupLog.WithName("standalone-collector"),
+	}
+}
+
+// standaloneCollector implements basic tenant discovery without Kubernetes
+type standaloneCollector struct {
+	cfg *config.Config
+	log logr.Logger
+}
+
+// GetTenantList implements tenant discovery for standalone mode
+func (s *standaloneCollector) GetTenantList(ctx context.Context) ([]string, error) {
+	// Try fallback tenants first
+	if len(s.cfg.MetricsDiscovery.TenantDiscovery.FallbackTenants) > 0 {
+		s.log.Info("Using configured fallback tenants", 
+			"count", len(s.cfg.MetricsDiscovery.TenantDiscovery.FallbackTenants))
+		return s.cfg.MetricsDiscovery.TenantDiscovery.FallbackTenants, nil
+	}
+	
+	// Try synthetic tenants
+	if s.cfg.MetricsDiscovery.TenantDiscovery.EnableSynthetic || s.cfg.Synthetic.Enabled {
+		count := s.cfg.MetricsDiscovery.TenantDiscovery.SyntheticCount
+		if count <= 0 {
+			if s.cfg.Synthetic.Enabled {
+				count = s.cfg.Synthetic.TenantCount
+			} else {
+				count = 3
+			}
+		}
+		
+		tenants := make([]string, count)
+		for i := 0; i < count; i++ {
+			tenants[i] = fmt.Sprintf("synthetic-tenant-%d", i+1)
+		}
+		
+		s.log.Info("Generated synthetic tenants", "count", len(tenants))
+		return tenants, nil
+	}
+	
+	return nil, fmt.Errorf("no tenant discovery method available in standalone mode")
+}
+
+// testMetricsConnectivity tests HTTP connectivity to the metrics endpoint with tenant headers
+func testMetricsConnectivity(cfg *config.Config) error {
+	client := &http.Client{
+		Timeout: 10 * time.Second,
+	}
+	
+	// Test with a simple query
+	testURL := fmt.Sprintf("%s?query=up", cfg.MetricsEndpoint)
+	req, err := http.NewRequest("GET", testURL, nil)
+	if err != nil {
+		return fmt.Errorf("failed to create test request: %w", err)
+	}
+	
+	// Add tenant headers
+	if cfg.MetricsDiscovery.TenantDiscovery.MetricsTenantID != "" {
+		req.Header.Set("X-Scope-OrgID", cfg.MetricsDiscovery.TenantDiscovery.MetricsTenantID)
+		setupLog.Info("Added tenant header for test", "tenant", cfg.MetricsDiscovery.TenantDiscovery.MetricsTenantID)
+	}
+	
+	// Add any additional custom headers
+	for key, value := range cfg.MetricsDiscovery.TenantDiscovery.TenantHeaders {
+		req.Header.Set(key, value)
+	}
+	
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("HTTP request failed: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	
+	setupLog.Info("Metrics endpoint test response", 
+		"status", resp.Status, 
+		"statusCode", resp.StatusCode)
+	
+	if resp.StatusCode == http.StatusOK {
+		return nil
+	}
+	
+	return fmt.Errorf("metrics endpoint returned status: %d %s", resp.StatusCode, resp.Status)
 } 

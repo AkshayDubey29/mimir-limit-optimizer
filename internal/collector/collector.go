@@ -11,6 +11,8 @@ import (
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
 	"k8s.io/client-go/kubernetes"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/AkshayDubey29/mimir-limit-optimizer/internal/config"
 	"github.com/AkshayDubey29/mimir-limit-optimizer/internal/discovery"
@@ -129,6 +131,9 @@ func (c *MimirCollector) collectFromSource(ctx context.Context, source string) (
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 	
+	// Add tenant headers for multi-tenant Mimir
+	c.addTenantHeaders(req)
+	
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch metrics: %w", err)
@@ -189,17 +194,134 @@ func (c *MimirCollector) collectFromSource(ctx context.Context, source string) (
 
 // GetTenantList returns list of all known tenants
 func (c *MimirCollector) GetTenantList(ctx context.Context) ([]string, error) {
+	// Try metrics-based discovery first
 	tenantMetrics, err := c.CollectMetrics(ctx)
-	if err != nil {
-		return nil, err
+	if err == nil {
+		tenants := make([]string, 0, len(tenantMetrics))
+		for tenant := range tenantMetrics {
+			tenants = append(tenants, tenant)
+		}
+		return tenants, nil
 	}
 	
-	tenants := make([]string, 0, len(tenantMetrics))
-	for tenant := range tenantMetrics {
+	c.log.Info("metrics collection failed, falling back to ConfigMap tenant discovery", "error", err)
+	
+	// Fallback: discover tenants from Mimir ConfigMap
+	return c.getTenantListFromConfigMap(ctx)
+}
+
+// getTenantListFromConfigMap discovers tenants from Mimir runtime overrides ConfigMap
+func (c *MimirCollector) getTenantListFromConfigMap(ctx context.Context) ([]string, error) {
+	// First try predefined fallback tenants from configuration
+	if len(c.config.MetricsDiscovery.TenantDiscovery.FallbackTenants) > 0 {
+		c.log.Info("using configured fallback tenants", "count", len(c.config.MetricsDiscovery.TenantDiscovery.FallbackTenants))
+		return c.config.MetricsDiscovery.TenantDiscovery.FallbackTenants, nil
+	}
+	
+	// Try configured ConfigMap names
+	configMapNames := c.config.MetricsDiscovery.TenantDiscovery.ConfigMapNames
+	if len(configMapNames) == 0 {
+		// Default ConfigMap names to try
+		configMapNames = []string{"overrides", "mimir-runtime-overrides", "runtime-config"}
+	}
+	
+	var configMap *corev1.ConfigMap
+	var err error
+	
+	for _, cmName := range configMapNames {
+		configMap, err = c.client.CoreV1().ConfigMaps(c.config.Mimir.Namespace).Get(ctx, cmName, metav1.GetOptions{})
+		if err == nil {
+			c.log.Info("found tenant configuration in ConfigMap", "configMap", cmName)
+			break
+		}
+		c.log.V(1).Info("ConfigMap not found", "name", cmName, "error", err)
+	}
+	
+	if err != nil {
+		// Try synthetic tenants if enabled
+		if c.config.MetricsDiscovery.TenantDiscovery.EnableSynthetic {
+			return c.generateSyntheticTenants(), nil
+		}
+		return nil, fmt.Errorf("failed to discover tenants: metrics collection failed and ConfigMap fallback failed: %w", err)
+	}
+	
+	// Parse YAML data to extract tenant IDs
+	var tenants []string
+	
+	// Look for overrides.yaml or runtime-config.yaml key
+	yamlData := ""
+	if data, ok := configMap.Data["overrides.yaml"]; ok {
+		yamlData = data
+	} else if data, ok := configMap.Data["runtime-config.yaml"]; ok {
+		yamlData = data
+	} else if data, ok := configMap.Data["config.yaml"]; ok {
+		yamlData = data
+	}
+	
+	if yamlData == "" {
+		c.log.Info("no YAML configuration found in ConfigMap, using synthetic tenant for testing")
+		return []string{"synthetic-tenant-1"}, nil
+	}
+	
+	// Simple parsing to extract tenant IDs
+	// Look for patterns like "tenant-1:" or "user-123:" 
+	lines := strings.Split(yamlData, "\n")
+	tenantSet := make(map[string]bool)
+	
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if strings.HasSuffix(line, ":") && !strings.Contains(line, " ") {
+			// This looks like a tenant key
+			tenantID := strings.TrimSuffix(line, ":")
+			if tenantID != "" && !strings.Contains(tenantID, "overrides") && !strings.Contains(tenantID, "default") {
+				tenantSet[tenantID] = true
+			}
+		}
+	}
+	
+	// Convert to slice
+	for tenant := range tenantSet {
 		tenants = append(tenants, tenant)
 	}
 	
+	if len(tenants) == 0 {
+		c.log.Info("no tenants found in ConfigMap, using synthetic tenant for testing")
+		return []string{"synthetic-tenant-1"}, nil
+	}
+	
+	c.log.Info("discovered tenants from ConfigMap", "count", len(tenants), "tenants", tenants)
 	return tenants, nil
+}
+
+// generateSyntheticTenants creates synthetic tenant IDs for testing
+func (c *MimirCollector) generateSyntheticTenants() []string {
+	count := c.config.MetricsDiscovery.TenantDiscovery.SyntheticCount
+	if count <= 0 {
+		count = 3 // Default to 3 synthetic tenants
+	}
+	
+	tenants := make([]string, count)
+	for i := 0; i < count; i++ {
+		tenants[i] = fmt.Sprintf("synthetic-tenant-%d", i+1)
+	}
+	
+	c.log.Info("generated synthetic tenants", "count", len(tenants), "tenants", tenants)
+	return tenants
+}
+
+// addTenantHeaders adds tenant-specific headers for multi-tenant Mimir access
+func (c *MimirCollector) addTenantHeaders(req *http.Request) {
+	// Add primary tenant ID if configured
+	if c.config.MetricsDiscovery.TenantDiscovery.MetricsTenantID != "" {
+		req.Header.Set("X-Scope-OrgID", c.config.MetricsDiscovery.TenantDiscovery.MetricsTenantID)
+		c.log.V(1).Info("added tenant header", "tenant", c.config.MetricsDiscovery.TenantDiscovery.MetricsTenantID)
+	}
+	
+	// Add any additional custom headers
+	for key, value := range c.config.MetricsDiscovery.TenantDiscovery.TenantHeaders {
+		req.Header.Set(key, value)
+		c.log.V(1).Info("added custom tenant header", "header", key, "value", value)
+	}
 }
 
 // isRelevantMetric checks if a metric is relevant for limit optimization
