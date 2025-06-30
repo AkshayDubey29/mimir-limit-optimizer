@@ -177,7 +177,12 @@ func performHealthCheck(probeAddr string) error {
 	if err != nil {
 		return fmt.Errorf("failed to connect to health endpoint: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			// Log the error but don't override the main error
+			fmt.Printf("Warning: failed to close response body: %v\n", closeErr)
+		}
+	}()
 	
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("health check returned status %d", resp.StatusCode)

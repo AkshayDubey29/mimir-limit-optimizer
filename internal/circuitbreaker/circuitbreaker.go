@@ -427,7 +427,7 @@ func (bp *BlastProtector) adjustLimitsBasedOnState(tenant string, limit *analyze
 	}
 
 	// Copy all limits and apply reduction factors based on state
-	var reductionFactor float64 = 1.0
+	reductionFactor := 1.0
 	var reason string
 
 	switch bp.state {
