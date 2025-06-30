@@ -229,7 +229,7 @@ func NewConfigMapAuditLogger(c client.Client, configMapName, namespace string, m
 	}
 }
 
-// LogEntry logs an audit entry to a ConfigMap
+// LogEntry logs an audit entry to a ConfigMap with retry logic for conflict resolution
 func (c *ConfigMapAuditLogger) LogEntry(entry *AuditEntry) error {
 	ctx := context.Background()
 
@@ -246,37 +246,72 @@ func (c *ConfigMapAuditLogger) LogEntry(entry *AuditEntry) error {
 		entry.Component = "mimir-limit-optimizer"
 	}
 
-	// Get or create ConfigMap
-	configMap, err := c.getOrCreateConfigMap(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to get/create audit ConfigMap: %w", err)
+	// Retry logic with exponential backoff for conflict resolution
+	maxRetries := 5
+	baseDelay := 100 * time.Millisecond
+
+	for attempt := 0; attempt < maxRetries; attempt++ {
+		// Get or create ConfigMap (fresh read each time)
+		configMap, err := c.getOrCreateConfigMap(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to get/create audit ConfigMap: %w", err)
+		}
+
+		// Parse existing entries
+		entries, err := c.parseEntries(configMap)
+		if err != nil {
+			return fmt.Errorf("failed to parse existing audit entries: %w", err)
+		}
+
+		// Add new entry
+		entries = append(entries, entry)
+
+		// Trim if necessary
+		if len(entries) > c.maxEntries {
+			removeCount := len(entries) - c.maxEntries
+			entries = entries[removeCount:]
+		}
+
+		// Try to update ConfigMap
+		if err := c.updateConfigMap(ctx, configMap, entries); err != nil {
+			// Check if it's a conflict error
+			if apierrors.IsConflict(err) {
+				if attempt < maxRetries-1 {
+					// Wait with exponential backoff before retrying
+					delay := time.Duration(1<<attempt) * baseDelay
+					c.log.V(1).Info("audit ConfigMap conflict, retrying",
+						"attempt", attempt+1,
+						"delay", delay,
+						"tenant", entry.Tenant)
+					time.Sleep(delay)
+					continue
+				}
+				// Max retries exceeded
+				c.log.Error(err, "failed to update audit ConfigMap after retries, dropping audit entry",
+					"tenant", entry.Tenant,
+					"action", entry.Action,
+					"attempts", maxRetries)
+				// Don't return error - just log the failure and continue
+				// Audit logging failure shouldn't break the main operation
+				return nil
+			}
+			// Non-conflict error, return immediately
+			return fmt.Errorf("failed to update audit ConfigMap: %w", err)
+		}
+
+		// Success
+		c.log.Info("audit entry logged to ConfigMap",
+			"id", entry.ID,
+			"tenant", entry.Tenant,
+			"action", entry.Action,
+			"attempt", attempt+1)
+		return nil
 	}
 
-	// Parse existing entries
-	entries, err := c.parseEntries(configMap)
-	if err != nil {
-		return fmt.Errorf("failed to parse existing audit entries: %w", err)
-	}
-
-	// Add new entry
-	entries = append(entries, entry)
-
-	// Trim if necessary
-	if len(entries) > c.maxEntries {
-		removeCount := len(entries) - c.maxEntries
-		entries = entries[removeCount:]
-	}
-
-	// Update ConfigMap
-	if err := c.updateConfigMap(ctx, configMap, entries); err != nil {
-		return fmt.Errorf("failed to update audit ConfigMap: %w", err)
-	}
-
-	c.log.Info("audit entry logged to ConfigMap",
-		"id", entry.ID,
+	// This should never be reached due to the logic above, but just in case
+	c.log.Error(nil, "unexpected end of retry loop for audit logging",
 		"tenant", entry.Tenant,
 		"action", entry.Action)
-
 	return nil
 }
 
@@ -329,35 +364,68 @@ func (c *ConfigMapAuditLogger) GetEntry(ctx context.Context, id string) (*AuditE
 	return nil, fmt.Errorf("audit entry not found: %s", id)
 }
 
-// PurgeOldEntries removes old entries from ConfigMap
+// PurgeOldEntries removes old entries from ConfigMap with retry logic for conflict resolution
 func (c *ConfigMapAuditLogger) PurgeOldEntries(ctx context.Context, olderThan time.Time) error {
-	configMap, err := c.getConfigMap(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to get audit ConfigMap: %w", err)
-	}
+	// Retry logic with exponential backoff for conflict resolution
+	maxRetries := 5
+	baseDelay := 100 * time.Millisecond
 
-	entries, err := c.parseEntries(configMap)
-	if err != nil {
-		return fmt.Errorf("failed to parse audit entries: %w", err)
-	}
-
-	var filtered []*AuditEntry
-	purgedCount := 0
-
-	for _, entry := range entries {
-		if entry.Timestamp.After(olderThan) {
-			filtered = append(filtered, entry)
-		} else {
-			purgedCount++
+	for attempt := 0; attempt < maxRetries; attempt++ {
+		configMap, err := c.getConfigMap(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to get audit ConfigMap: %w", err)
 		}
+
+		entries, err := c.parseEntries(configMap)
+		if err != nil {
+			return fmt.Errorf("failed to parse audit entries: %w", err)
+		}
+
+		var filtered []*AuditEntry
+		purgedCount := 0
+
+		for _, entry := range entries {
+			if entry.Timestamp.After(olderThan) {
+				filtered = append(filtered, entry)
+			} else {
+				purgedCount++
+			}
+		}
+
+		// Try to update ConfigMap
+		if err := c.updateConfigMap(ctx, configMap, filtered); err != nil {
+			// Check if it's a conflict error
+			if apierrors.IsConflict(err) {
+				if attempt < maxRetries-1 {
+					// Wait with exponential backoff before retrying
+					delay := time.Duration(1<<attempt) * baseDelay
+					c.log.V(1).Info("audit ConfigMap conflict during purge, retrying",
+						"attempt", attempt+1,
+						"delay", delay,
+						"purge_count", purgedCount)
+					time.Sleep(delay)
+					continue
+				}
+				// Max retries exceeded - log but don't fail the operation
+				c.log.Error(err, "failed to purge audit ConfigMap after retries",
+					"attempts", maxRetries,
+					"purge_count", purgedCount)
+				return nil
+			}
+			// Non-conflict error, return immediately
+			return fmt.Errorf("failed to update audit ConfigMap: %w", err)
+		}
+
+		// Success
+		c.log.Info("purged old audit entries from ConfigMap", 
+			"count", purgedCount, 
+			"older_than", olderThan,
+			"attempt", attempt+1)
+		return nil
 	}
 
-	if err := c.updateConfigMap(ctx, configMap, filtered); err != nil {
-		return fmt.Errorf("failed to update audit ConfigMap: %w", err)
-	}
-
-	c.log.Info("purged old audit entries from ConfigMap", "count", purgedCount, "older_than", olderThan)
-
+	// This should never be reached due to the logic above, but just in case
+	c.log.Error(nil, "unexpected end of retry loop for audit purge")
 	return nil
 }
 
