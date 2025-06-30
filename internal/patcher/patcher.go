@@ -200,7 +200,10 @@ func (p *ConfigMapPatcher) RollbackChanges(ctx context.Context) error {
 			Changes:   map[string]interface{}{"rollback": "restored from backup"},
 		}
 		if err := p.auditLog.LogEntry(entry); err != nil {
-			p.log.Error(err, "failed to log audit entry for rollback")
+			// Audit logging failures should not interrupt the rollback operation
+			p.log.Error(err, "failed to log audit entry for rollback (audit failure is non-critical)",
+				"action", entry.Action,
+				"reason", entry.Reason)
 		}
 	}
 
@@ -461,7 +464,12 @@ func (p *ConfigMapPatcher) logChanges(oldOverrides, newOverrides map[string]inte
 		}
 		
 		if err := p.auditLog.LogEntry(entry); err != nil {
-			p.log.Error(err, "failed to log audit entry for tenant limits", "tenant", tenant)
+			// Audit logging failures should not interrupt the main operation
+			// Log the error but continue processing other tenants
+			p.log.Error(err, "failed to log audit entry for tenant limits (audit failure is non-critical)", 
+				"tenant", tenant,
+				"action", entry.Action,
+				"reason", entry.Reason)
 		}
 		metrics.TenantMetricsInstance.IncTenantLimitsUpdated(tenant, limit.Reason)
 	}
