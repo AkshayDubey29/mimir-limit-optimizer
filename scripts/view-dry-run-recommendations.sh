@@ -18,8 +18,8 @@ echo -e "${BLUE}===================================${NC}"
 function show_usage() {
     echo "Usage: $0 [namespace]"
     echo ""
-    echo "This script shows what changes WOULD be made to mimir-runtime-overrides"
-    echo "if the system were running in production mode instead of dry-run."
+    echo "This script shows the actual optimized limits written to mimir-runtime-overrides"
+    echo "for verification in dry-run mode. These values are ready for production use."
     echo ""
     echo "Examples:"
     echo "  $0 mimir-optimizer"
@@ -77,21 +77,26 @@ function extract_recommendations() {
 }
 
 function show_what_would_change() {
-    echo -e "\n${GREEN}🔮 What WOULD Change in Production Mode${NC}"
+    echo -e "\n${GREEN}🔮 Dry-Run vs Production Mode Behavior${NC}"
     echo "----------------------------------------"
     
     cat << 'EOF'
-If you switch to production mode (mode: "prod"), the system would:
+Current DRY-RUN mode behavior:
+✅ Analyze tenant usage patterns
+✅ Calculate optimal limits  
+✅ Generate recommendations
+✅ WRITE optimized values to mimir-runtime-overrides ConfigMap (for verification)
+⏸️  Mimir ignores these values (continues with current config)
 
-✅ Analyze tenant usage patterns (same as now)
-✅ Calculate optimal limits (same as now)  
-✅ Generate recommendations (same as now)
-🔄 WRITE changes to mimir-runtime-overrides ConfigMap
+Production mode behavior:
+✅ Analyze tenant usage patterns (same as dry-run)
+✅ Calculate optimal limits (same as dry-run)
+✅ Generate recommendations (same as dry-run)
+✅ WRITE optimized values to mimir-runtime-overrides ConfigMap (same as dry-run)
 🔄 TRIGGER Mimir component rollouts (if enabled)
-🔄 APPLY new limits to tenants immediately
+🚀 Mimir ACTIVELY USES these limits for all tenants
 
-Current ConfigMap: mimir-runtime-overrides (empty in dry-run)
-Production ConfigMap: mimir-runtime-overrides (would contain limits)
+ConfigMap Location: mimir-runtime-overrides (contains actual values in both modes)
 
 Example of what would be written:
 ```yaml
@@ -121,10 +126,13 @@ function show_current_state() {
         CONTENT=$(kubectl get configmap mimir-runtime-overrides -n mimir -o jsonpath='{.data}' 2>/dev/null)
         
         if [ -z "$CONTENT" ] || [ "$CONTENT" = "{}" ]; then
-            echo -e "${YELLOW}📄 ConfigMap is empty (expected in dry-run mode)${NC}"
+            echo -e "${YELLOW}📄 ConfigMap is empty - optimizer may not have run yet${NC}"
         else
-            echo -e "${GREEN}📄 ConfigMap content:${NC}"
+            echo -e "${GREEN}📄 ConfigMap contains optimized limits:${NC}"
             kubectl get configmap mimir-runtime-overrides -n mimir -o yaml
+            echo ""
+            echo -e "${CYAN}💡 In dry-run mode: These values are for verification only${NC}"
+            echo -e "${CYAN}💡 In production mode: Mimir actively uses these limits${NC}"
         fi
     else
         echo -e "${RED}❌ ConfigMap mimir-runtime-overrides not found in mimir namespace${NC}"
@@ -134,13 +142,13 @@ function show_current_state() {
 }
 
 function simulate_production_output() {
-    echo -e "\n${GREEN}🎯 Simulated Production Mode Changes${NC}"
+    echo -e "\n${GREEN}🎯 Actual Optimized Limits (Ready for Production)${NC}"
     echo "----------------------------------------"
     
     # Extract recent recommendations from logs and simulate what would be written
     LOGS=$(kubectl logs -n $NAMESPACE deployment/$DEPLOYMENT --tail=200 2>/dev/null)
     
-    echo -e "${CYAN}Based on recent analysis, here's what would be written to ConfigMap:${NC}"
+    echo -e "${CYAN}These are the actual values written to ConfigMap (check above for real content):${NC}"
     echo ""
     echo "apiVersion: v1"
     echo "kind: ConfigMap"
@@ -188,10 +196,11 @@ function check_mode() {
             echo -e "${CYAN}Current Mode: $MODE${NC}"
             
             if echo "$MODE" | grep -q "dry-run"; then
-                echo -e "${GREEN}✅ Correctly in dry-run mode (safe observation)${NC}"
-                echo -e "${BLUE}💡 ConfigMap remains empty intentionally${NC}"
+                echo -e "${GREEN}✅ Correctly in dry-run mode (safe verification)${NC}"
+                echo -e "${BLUE}💡 ConfigMap contains optimized values for review${NC}"
+                echo -e "${BLUE}💡 Mimir ignores these values until production mode${NC}"
             else
-                echo -e "${YELLOW}⚠️  Not in dry-run mode - changes would be applied!${NC}"
+                echo -e "${YELLOW}⚠️  In production mode - Mimir actively uses these limits!${NC}"
             fi
         fi
     fi

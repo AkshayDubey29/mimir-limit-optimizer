@@ -63,10 +63,6 @@ func NewConfigMapPatcher(c client.Client, kubeClient kubernetes.Interface, cfg *
 
 // ApplyLimits applies the calculated limits to the Mimir runtime overrides ConfigMap
 func (p *ConfigMapPatcher) ApplyLimits(ctx context.Context, limits map[string]*analyzer.TenantLimits) error {
-	if p.config.Mode == "dry-run" {
-		return p.logDryRunChanges(limits)
-	}
-
 	startTime := time.Now()
 	defer func() {
 		duration := time.Since(startTime).Seconds()
@@ -112,7 +108,19 @@ func (p *ConfigMapPatcher) ApplyLimits(ctx context.Context, limits map[string]*a
 	metrics.ConfigMapMetricsInstance.IncConfigMapUpdates("success")
 	metrics.ConfigMapMetricsInstance.SetLastConfigMapUpdate(float64(time.Now().Unix()))
 
-	p.log.Info("successfully applied limits", "tenants", len(limits))
+	if p.config.Mode == "dry-run" {
+		p.log.Info("successfully wrote optimized limits to ConfigMap for verification", 
+			"tenants", len(limits),
+			"mode", "dry-run",
+			"configmap", p.config.Mimir.ConfigMapName,
+			"namespace", p.config.Mimir.Namespace)
+	} else {
+		p.log.Info("successfully applied limits for production use", 
+			"tenants", len(limits),
+			"mode", "production",
+			"configmap", p.config.Mimir.ConfigMapName,
+			"namespace", p.config.Mimir.Namespace)
+	}
 
 	return nil
 }

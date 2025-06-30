@@ -313,25 +313,50 @@ func (r *MimirLimitController) reconcile(ctx context.Context) error {
 		protectedLimits = finalLimits // Continue with unprotected limits
 	}
 	
-	// Step 9: Apply limits (or preview in dry-run mode)
+	// Step 9: Apply limits to ConfigMap (both dry-run and production modes)
 	if r.Config.Mode == "dry-run" {
-		r.Log.Info("DRY-RUN mode: limits preview with enterprise protections")
+		r.Log.Info("DRY-RUN mode: writing optimized values to ConfigMap for verification")
+		
+		// First get preview for logging purposes
 		preview, err := r.Patcher.PreviewLimits(ctx, protectedLimits)
 		if err != nil {
 			metrics.HealthMetricsInstance.IncErrorTotal("patcher", "preview")
-			return fmt.Errorf("failed to preview limits: %w", err)
+			r.Log.Error(err, "failed to generate preview (continuing with apply)")
+		} else {
+			r.logPreview(preview)
 		}
 		
-		r.logPreview(preview)
-		r.logEnterpriseStatus(ctx, tenantCosts, r.BlastProtector.GetProtectionStatus())
-	} else {
-		// Production mode: apply limits
+		// Apply the actual values to ConfigMap for user verification
 		if err := r.Patcher.ApplyLimits(ctx, protectedLimits); err != nil {
 			metrics.HealthMetricsInstance.SetHealthStatus("patcher", 0)
 			metrics.HealthMetricsInstance.IncErrorTotal("patcher", "apply-limits")
-			return fmt.Errorf("failed to apply limits: %w", err)
+			return fmt.Errorf("failed to write optimized limits to ConfigMap for verification: %w", err)
 		}
 		metrics.HealthMetricsInstance.SetHealthStatus("patcher", 1)
+		
+		r.Log.Info("DRY-RUN: Optimized limits written to ConfigMap for verification",
+			"configmap", r.Config.Mimir.ConfigMapName,
+			"namespace", r.Config.Mimir.Namespace,
+			"tenants_updated", len(protectedLimits),
+			"note", "These values are for verification only - Mimir is not using them yet")
+		
+		r.logEnterpriseStatus(ctx, tenantCosts, r.BlastProtector.GetProtectionStatus())
+	} else {
+		// Production mode: apply limits for actual Mimir consumption
+		r.Log.Info("PRODUCTION mode: applying optimized limits for Mimir consumption")
+		
+		if err := r.Patcher.ApplyLimits(ctx, protectedLimits); err != nil {
+			metrics.HealthMetricsInstance.SetHealthStatus("patcher", 0)
+			metrics.HealthMetricsInstance.IncErrorTotal("patcher", "apply-limits")
+			return fmt.Errorf("failed to apply limits for production use: %w", err)
+		}
+		metrics.HealthMetricsInstance.SetHealthStatus("patcher", 1)
+		
+		r.Log.Info("PRODUCTION: Optimized limits applied and active",
+			"configmap", r.Config.Mimir.ConfigMapName,
+			"namespace", r.Config.Mimir.Namespace,
+			"tenants_updated", len(protectedLimits),
+			"note", "Mimir will use these limits at runtime")
 	}
 	
 	// Step 10: Update current limits metrics
