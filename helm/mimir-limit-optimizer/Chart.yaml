@@ -1,13 +1,18 @@
+---
 apiVersion: v2
 name: mimir-limit-optimizer
-description: Enterprise-grade Kubernetes-native controller for dynamically managing per-tenant limits in Grafana Mimir with cost control and circuit breaker protection
+description: >-
+  Enterprise-grade Kubernetes-native controller for dynamically managing
+  per-tenant limits in Grafana Mimir with cost control and circuit breaker
+  protection
 type: application
 version: 1.2.0
 appVersion: "1.2.0"
 home: https://github.com/AkshayDubey29/mimir-limit-optimizer
 sources:
   - https://github.com/AkshayDubey29/mimir-limit-optimizer
-icon: https://raw.githubusercontent.com/grafana/mimir/main/docs/sources/mimir/logo.svg
+icon: >-
+  https://raw.githubusercontent.com/grafana/mimir/main/docs/sources/mimir/logo.svg
 maintainers:
   - name: Akshay Dubey
     email: akshaydubey2912@gmail.com
@@ -19,4 +24,4 @@ keywords:
   - optimization
   - controller
 annotations:
-  category: Monitoring 
+  category: Monitoring
