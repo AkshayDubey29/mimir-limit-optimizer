@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+	"encoding/json"
+	"net/url"
 
 	"github.com/go-logr/logr"
 	dto "github.com/prometheus/client_model/go"
@@ -557,4 +559,209 @@ func NewCollector(cfg *config.Config, client kubernetes.Interface, log logr.Logg
 		return NewSyntheticCollector(cfg, log.WithName("synthetic"))
 	}
 	return NewMimirCollector(cfg, client, log.WithName("mimir"))
+}
+
+// PromQLResult represents a PromQL query result
+type PromQLResult struct {
+	Status string `json:"status"`
+	Data   struct {
+		ResultType string `json:"resultType"`
+		Result     []struct {
+			Metric map[string]string `json:"metric"`
+			Values [][]interface{}   `json:"values,omitempty"`
+			Value  []interface{}     `json:"value,omitempty"`
+		} `json:"result"`
+	} `json:"data"`
+}
+
+// QueryHistoricalData queries historical metrics using PromQL
+func (c *MimirCollector) QueryHistoricalData(ctx context.Context, query string, startTime, endTime time.Time, step time.Duration) ([]MetricData, error) {
+	if c.config.MetricsEndpoint == "" {
+		return nil, fmt.Errorf("no metrics endpoint configured for PromQL queries")
+	}
+
+	// Build PromQL query URL
+	baseURL := strings.TrimSuffix(c.config.MetricsEndpoint, "/metrics")
+	queryURL := fmt.Sprintf("%s/api/v1/query_range", baseURL)
+
+	params := url.Values{}
+	params.Set("query", query)
+	params.Set("start", fmt.Sprintf("%d", startTime.Unix()))
+	params.Set("end", fmt.Sprintf("%d", endTime.Unix()))
+	params.Set("step", fmt.Sprintf("%.0fs", step.Seconds()))
+
+	fullURL := fmt.Sprintf("%s?%s", queryURL, params.Encode())
+
+	req, err := http.NewRequestWithContext(ctx, "GET", fullURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create PromQL request: %w", err)
+	}
+
+	// Add tenant headers for multi-tenant Mimir
+	c.addTenantHeaders(req)
+
+	c.log.V(1).Info("executing PromQL query",
+		"url", fullURL,
+		"query", query,
+		"start", startTime,
+		"end", endTime,
+		"step", step)
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute PromQL query: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("PromQL query failed with status %d: %s", resp.StatusCode, string(bodyBytes))
+	}
+
+	var result PromQLResult
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, fmt.Errorf("failed to decode PromQL response: %w", err)
+	}
+
+	if result.Status != "success" {
+		return nil, fmt.Errorf("PromQL query failed: %s", result.Status)
+	}
+
+	var metricData []MetricData
+	for _, series := range result.Data.Result {
+		tenant := series.Metric["tenant"]
+		if tenant == "" {
+			tenant = series.Metric["user"] // Fallback for older Mimir versions
+		}
+
+		// Handle range query results (multiple time points)
+		if len(series.Values) > 0 {
+			for _, valuePoint := range series.Values {
+				if len(valuePoint) >= 2 {
+					timestamp := time.Unix(int64(valuePoint[0].(float64)), 0)
+					value, err := parseFloat(valuePoint[1])
+					if err != nil {
+						continue
+					}
+
+					metricData = append(metricData, MetricData{
+						Tenant:     tenant,
+						MetricName: extractMetricName(query),
+						Value:      value,
+						Timestamp:  timestamp,
+						Labels:     series.Metric,
+						Source:     "promql",
+					})
+				}
+			}
+		}
+
+		// Handle instant query results (single time point)
+		if len(series.Value) >= 2 {
+			timestamp := time.Unix(int64(series.Value[0].(float64)), 0)
+			value, err := parseFloat(series.Value[1])
+			if err != nil {
+				continue
+			}
+
+			metricData = append(metricData, MetricData{
+				Tenant:     tenant,
+				MetricName: extractMetricName(query),
+				Value:      value,
+				Timestamp:  timestamp,
+				Labels:     series.Metric,
+				Source:     "promql",
+			})
+		}
+	}
+
+	c.log.V(1).Info("PromQL query completed",
+		"query", query,
+		"dataPoints", len(metricData),
+		"tenants", countUniqueTenants(metricData))
+
+	return metricData, nil
+}
+
+// Helper function to parse float values from PromQL response
+func parseFloat(val interface{}) (float64, error) {
+	switch v := val.(type) {
+	case string:
+		if v == "NaN" || v == "+Inf" || v == "-Inf" {
+			return 0, fmt.Errorf("invalid float value: %s", v)
+		}
+		return 0, fmt.Errorf("unexpected string value: %s", v)
+	case float64:
+		return v, nil
+	default:
+		return 0, fmt.Errorf("unexpected value type: %T", val)
+	}
+}
+
+// Extract metric name from PromQL query
+func extractMetricName(query string) string {
+	// Simple extraction - could be more sophisticated
+	parts := strings.Fields(query)
+	if len(parts) > 0 {
+		return strings.Split(parts[0], "{")[0]
+	}
+	return "unknown"
+}
+
+// Count unique tenants in metric data
+func countUniqueTenants(data []MetricData) int {
+	tenants := make(map[string]bool)
+	for _, d := range data {
+		tenants[d.Tenant] = true
+	}
+	return len(tenants)
+}
+
+// GetHistoricalTrendData fetches sophisticated historical data for trend analysis
+func (c *MimirCollector) GetHistoricalTrendData(ctx context.Context, tenant string, limitName string, analysisWindow time.Duration) ([]MetricData, error) {
+	// Get metric name for this limit
+	metricMapping := c.getMetricMappingForLimits()
+	metricName, exists := metricMapping[limitName]
+	if !exists {
+		return nil, fmt.Errorf("no metric mapping found for limit: %s", limitName)
+	}
+
+	endTime := time.Now()
+	startTime := endTime.Add(-analysisWindow)
+	step := analysisWindow / 100 // 100 data points over the window
+
+	// Build tenant-specific PromQL query
+	query := fmt.Sprintf(`%s{tenant="%s"}`, metricName, tenant)
+
+	// For rate metrics, calculate rate
+	if strings.Contains(limitName, "rate") || strings.HasSuffix(metricName, "_total") {
+		query = fmt.Sprintf(`rate(%s{tenant="%s"}[5m])`, metricName, tenant)
+	}
+
+	c.log.Info("fetching historical trend data",
+		"tenant", tenant,
+		"limit", limitName,
+		"metric", metricName,
+		"query", query,
+		"window", analysisWindow,
+		"startTime", startTime,
+		"endTime", endTime)
+
+	return c.QueryHistoricalData(ctx, query, startTime, endTime, step)
+}
+
+// getMetricMappingForLimits returns the metric mapping for limits
+func (c *MimirCollector) getMetricMappingForLimits() map[string]string {
+	return map[string]string{
+		"ingestion_rate":                   "cortex_distributor_received_samples_total",
+		"ingestion_burst_size":             "cortex_distributor_received_samples_total", 
+		"max_global_series_per_user":       "cortex_ingester_memory_series",
+		"max_samples_per_query":            "cortex_querier_series_fetched",
+		"max_ingestion_rate_bytes":         "cortex_distributor_received_samples_bytes_total",
+		"max_ingestion_burst_size_bytes":   "cortex_distributor_received_samples_bytes_total",
+		"query_timeout":                    "cortex_query_frontend_query_duration_seconds",
+		"max_concurrent_queries":           "cortex_query_frontend_queries_in_progress",
+		"max_outstanding_per_tenant":       "cortex_query_frontend_queue_length",
+		// Add all other mappings...
+	}
 } 
