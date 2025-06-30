@@ -77,7 +77,7 @@ EXPOSE 8080
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
-    CMD ["/usr/local/bin/mimir-limit-optimizer", "--health-check"] || exit 1
+    CMD ["/usr/local/bin/mimir-limit-optimizer", "--health-check"]
 
 # Set entrypoint
 ENTRYPOINT ["/usr/local/bin/mimir-limit-optimizer"] 
