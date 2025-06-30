@@ -1,5 +1,12 @@
 # Default values for mimir-limit-optimizer
 
+# Chart configuration
+nameOverride: ""
+fullnameOverride: ""
+
+# Common labels to add to all resources
+commonLabels: {}
+
 # Controller configuration
 controller:
   # Operating mode: "dry-run" or "prod"
@@ -13,7 +20,7 @@ controller:
 
 # Container image configuration
 image:
-  repository: mimir-limit-optimizer
+  repository: ghcr.io/akshaydubey29/mimir-limit-optimizer
   tag: "latest"
   pullPolicy: IfNotPresent
 
