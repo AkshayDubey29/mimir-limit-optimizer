@@ -109,23 +109,42 @@ metricsDiscovery:
   # Namespace to discover services in
   namespace: "mimir"
 
-  # Label selector for discovering services
-  serviceLabelSelector: "app.kubernetes.io/name=mimir"
+  # Label selector for discovering services (update this based on your Mimir deployment)
+  # Common Mimir label selectors:
+  serviceLabelSelector: "app.kubernetes.io/part-of=mimir"
+  # Alternative options:
+  # serviceLabelSelector: "app.kubernetes.io/name=mimir"
+  # serviceLabelSelector: "app=mimir"
+  # serviceLabelSelector: "component in (distributor,ingester,querier,query-frontend,compactor,store-gateway,alertmanager)"
 
-  # List of known service names to discover
+  # List of known service names to discover (comprehensive list for your deployment)
   serviceNames:
-    - "mimir-distributor"
-    - "mimir-ingester"
-    - "mimir-querier"
-    - "mimir-query-frontend"
+    - "distributor"
+    - "ingester-zone-a"
+    - "ingester-zone-b" 
+    - "ingester-zone-c"
+    - "querier"
+    - "query-frontend"
+    - "query-scheduler"
+    - "compactor"
+    - "store-gateway-multi-zone"
+    - "store-gateway-zone-a"
+    - "store-gateway-zone-b"
+    - "store-gateway-zone-c"
+    - "alertmanager"
+    - "overrides-exporter"
+    # Note: Excluding memcached services as they typically don't expose Mimir metrics
 
   # Metrics path on services
   metricsPath: "/metrics"
 
-  # Port name for metrics
+  # Port name for metrics (common Mimir port names)
   portName: "http-metrics"
+  # Alternative port names to try:
+  # portName: "metrics"
+  # portName: "http"
 
-  # Port number (if portName is not used)
+  # Port number (fallback if portName doesn't work)
   port: 8080
 
 # Optional fallback metrics endpoint (e.g., Prometheus URL)
