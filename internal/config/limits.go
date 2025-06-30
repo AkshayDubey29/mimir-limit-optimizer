@@ -6,11 +6,11 @@ func GetDefaultLimitDefinitions() map[string]LimitDefinition {
 		// Ingestion Limits
 		"ingestion_rate": {
 			Name:         "ingestion_rate",
-			Type:         "rate",
+			Type:         "count", // Changed to count (integer) - samples per second should be whole numbers
 			MetricSource: "prometheus_remote_storage_samples_in_total",
-			DefaultValue: 25000.0,
-			MinValue:     1000.0,
-			MaxValue:     10000000.0,
+			DefaultValue: int64(25000), // Integer value
+			MinValue:     int64(1000),
+			MaxValue:     int64(10000000),
 			BufferFactor: 20.0,
 			Enabled:      true,
 			Description:  "Rate limit for sample ingestion (samples/sec)",
@@ -19,9 +19,9 @@ func GetDefaultLimitDefinitions() map[string]LimitDefinition {
 			Name:         "ingestion_burst_size",
 			Type:         "count",
 			MetricSource: "prometheus_remote_storage_samples_in_total",
-			DefaultValue: 50000.0,
-			MinValue:     2000.0,
-			MaxValue:     20000000.0,
+			DefaultValue: int64(50000), // Integer value
+			MinValue:     int64(2000),
+			MaxValue:     int64(20000000),
 			BufferFactor: 20.0,
 			Enabled:      true,
 			Description:  "Burst size for sample ingestion",
@@ -32,9 +32,9 @@ func GetDefaultLimitDefinitions() map[string]LimitDefinition {
 			Name:         "max_global_series_per_user",
 			Type:         "count",
 			MetricSource: "prometheus_tsdb_head_series",
-			DefaultValue: 150000.0,
-			MinValue:     1000.0,
-			MaxValue:     100000000.0,
+			DefaultValue: int64(150000), // Integer value
+			MinValue:     int64(1000),
+			MaxValue:     int64(100000000),
 			BufferFactor: 20.0,
 			Enabled:      true,
 			Description:  "Maximum series per tenant",
@@ -43,9 +43,9 @@ func GetDefaultLimitDefinitions() map[string]LimitDefinition {
 			Name:         "max_global_series_per_metric",
 			Type:         "count",
 			MetricSource: "prometheus_tsdb_head_series",
-			DefaultValue: 0.0, // 0 = unlimited
-			MinValue:     0.0,
-			MaxValue:     1000000.0,
+			DefaultValue: int64(0), // 0 = unlimited
+			MinValue:     int64(0),
+			MaxValue:     int64(1000000),
 			BufferFactor: 20.0,
 			Enabled:      false,
 			Description:  "Maximum series per metric name",
@@ -56,9 +56,9 @@ func GetDefaultLimitDefinitions() map[string]LimitDefinition {
 			Name:         "max_samples_per_query",
 			Type:         "count",
 			MetricSource: "prometheus_engine_query_samples_total",
-			DefaultValue: 50000000.0,
-			MinValue:     1000.0,
-			MaxValue:     1000000000.0,
+			DefaultValue: int64(50000000), // Integer value
+			MinValue:     int64(1000),
+			MaxValue:     int64(1000000000),
 			BufferFactor: 50.0,
 			Enabled:      true,
 			Description:  "Maximum samples a single query can load",
@@ -67,9 +67,9 @@ func GetDefaultLimitDefinitions() map[string]LimitDefinition {
 			Name:         "max_series_per_query",
 			Type:         "count",
 			MetricSource: "prometheus_engine_query_series_total",
-			DefaultValue: 100000.0,
-			MinValue:     100.0,
-			MaxValue:     10000000.0,
+			DefaultValue: int64(100000), // Integer value
+			MinValue:     int64(100),
+			MaxValue:     int64(10000000),
 			BufferFactor: 50.0,
 			Enabled:      true,
 			Description:  "Maximum series a single query can return",
@@ -102,9 +102,9 @@ func GetDefaultLimitDefinitions() map[string]LimitDefinition {
 			Name:         "max_fetched_chunks_per_query",
 			Type:         "count",
 			MetricSource: "prometheus_tsdb_head_chunks",
-			DefaultValue: 2000000.0,
-			MinValue:     1000.0,
-			MaxValue:     100000000.0,
+			DefaultValue: int64(2000000), // Integer value
+			MinValue:     int64(1000),
+			MaxValue:     int64(100000000),
 			BufferFactor: 50.0,
 			Enabled:      true,
 			Description:  "Maximum chunks a single query can fetch",
@@ -113,9 +113,9 @@ func GetDefaultLimitDefinitions() map[string]LimitDefinition {
 			Name:         "max_fetched_series_per_query", 
 			Type:         "count",
 			MetricSource: "prometheus_engine_query_series_total",
-			DefaultValue: 100000.0,
-			MinValue:     100.0,
-			MaxValue:     10000000.0,
+			DefaultValue: int64(100000), // Integer value
+			MinValue:     int64(100),
+			MaxValue:     int64(10000000),
 			BufferFactor: 50.0,
 			Enabled:      true,
 			Description:  "Maximum series a single query can fetch",
@@ -124,9 +124,9 @@ func GetDefaultLimitDefinitions() map[string]LimitDefinition {
 			Name:         "max_fetched_chunk_bytes_per_query",
 			Type:         "size",
 			MetricSource: "prometheus_tsdb_compaction_chunk_size_bytes",
-			DefaultValue: 50000000.0, // 50MB
-			MinValue:     1000000.0,  // 1MB
-			MaxValue:     1000000000.0, // 1GB
+			DefaultValue: int64(50000000), // 50MB - Integer value
+			MinValue:     int64(1000000),  // 1MB
+			MaxValue:     int64(1000000000), // 1GB
 			BufferFactor: 50.0,
 			Enabled:      true,
 			Description:  "Maximum chunk bytes a single query can fetch",
@@ -137,9 +137,9 @@ func GetDefaultLimitDefinitions() map[string]LimitDefinition {
 			Name:         "max_global_metadata_per_user",
 			Type:         "count",
 			MetricSource: "prometheus_tsdb_head_series",
-			DefaultValue: 8000.0,
-			MinValue:     100.0,
-			MaxValue:     1000000.0,
+			DefaultValue: int64(8000), // Integer value
+			MinValue:     int64(100),
+			MaxValue:     int64(1000000),
 			BufferFactor: 20.0,
 			Enabled:      false,
 			Description:  "Maximum metadata entries per tenant",
@@ -148,9 +148,9 @@ func GetDefaultLimitDefinitions() map[string]LimitDefinition {
 			Name:         "max_global_metadata_per_metric",
 			Type:         "count",
 			MetricSource: "prometheus_tsdb_head_series",
-			DefaultValue: 10.0,
-			MinValue:     1.0,
-			MaxValue:     100.0,
+			DefaultValue: int64(10), // Integer value
+			MinValue:     int64(1),
+			MaxValue:     int64(100),
 			BufferFactor: 20.0,
 			Enabled:      false,
 			Description:  "Maximum metadata entries per metric",
@@ -161,9 +161,9 @@ func GetDefaultLimitDefinitions() map[string]LimitDefinition {
 			Name:         "max_global_exemplars_per_user",
 			Type:         "count",
 			MetricSource: "prometheus_tsdb_exemplar_exemplars_total",
-			DefaultValue: 100000.0,
-			MinValue:     1000.0,
-			MaxValue:     10000000.0,
+			DefaultValue: int64(100000), // Integer value
+			MinValue:     int64(1000),
+			MaxValue:     int64(10000000),
 			BufferFactor: 50.0,
 			Enabled:      false,
 			Description:  "Maximum exemplars per tenant",
@@ -174,7 +174,7 @@ func GetDefaultLimitDefinitions() map[string]LimitDefinition {
 			Name:         "request_rate",
 			Type:         "rate",
 			MetricSource: "http_requests_total",
-			DefaultValue: 0.0, // 0 = unlimited
+			DefaultValue: 0.0, // 0 = unlimited - Keep as float for rate
 			MinValue:     0.0,
 			MaxValue:     10000.0,
 			BufferFactor: 50.0,
@@ -185,9 +185,9 @@ func GetDefaultLimitDefinitions() map[string]LimitDefinition {
 			Name:         "request_burst_size",
 			Type:         "count",
 			MetricSource: "http_requests_total",
-			DefaultValue: 0.0, // 0 = unlimited
-			MinValue:     0.0,
-			MaxValue:     1000.0,
+			DefaultValue: int64(0), // 0 = unlimited - Integer value
+			MinValue:     int64(0),
+			MaxValue:     int64(1000),
 			BufferFactor: 50.0,
 			Enabled:      false,
 			Description:  "Request burst size",
@@ -198,10 +198,10 @@ func GetDefaultLimitDefinitions() map[string]LimitDefinition {
 			Name:         "ruler_max_rules_per_rule_group",
 			Type:         "count",
 			MetricSource: "prometheus_rule_group_rules",
-			DefaultValue: 100.0,
-			MinValue:     1.0,
-			MaxValue:     10000.0,
-			BufferFactor: 20.0,
+			DefaultValue: int64(20), // Integer value
+			MinValue:     int64(1),
+			MaxValue:     int64(1000),
+			BufferFactor: 50.0,
 			Enabled:      false,
 			Description:  "Maximum rules per rule group",
 		},
@@ -209,9 +209,9 @@ func GetDefaultLimitDefinitions() map[string]LimitDefinition {
 			Name:         "ruler_max_rule_groups_per_tenant",
 			Type:         "count",
 			MetricSource: "prometheus_rule_group_rules",
-			DefaultValue: 100.0,
-			MinValue:     1.0,
-			MaxValue:     10000.0,
+			DefaultValue: int64(100), // Integer value
+			MinValue:     int64(1),
+			MaxValue:     int64(10000),
 			BufferFactor: 20.0,
 			Enabled:      false,
 			Description:  "Maximum rule groups per tenant",
@@ -222,7 +222,7 @@ func GetDefaultLimitDefinitions() map[string]LimitDefinition {
 			Name:         "alertmanager_notification_rate_limit",
 			Type:         "rate",
 			MetricSource: "alertmanager_notifications_total",
-			DefaultValue: 0.0, // 0 = unlimited
+			DefaultValue: 0.0, // 0 = unlimited - Keep as float for rate
 			MinValue:     0.0,
 			MaxValue:     1000.0,
 			BufferFactor: 50.0,
@@ -233,9 +233,9 @@ func GetDefaultLimitDefinitions() map[string]LimitDefinition {
 			Name:         "alertmanager_max_dispatcher_aggregation_groups",
 			Type:         "count",
 			MetricSource: "alertmanager_dispatcher_aggregation_groups",
-			DefaultValue: 0.0, // 0 = unlimited
-			MinValue:     0.0,
-			MaxValue:     10000.0,
+			DefaultValue: int64(0), // 0 = unlimited - Integer value
+			MinValue:     int64(0),
+			MaxValue:     int64(10000),
 			BufferFactor: 50.0,
 			Enabled:      false,
 			Description:  "Maximum dispatcher aggregation groups",
@@ -244,9 +244,9 @@ func GetDefaultLimitDefinitions() map[string]LimitDefinition {
 			Name:         "alertmanager_max_alerts_count",
 			Type:         "count",
 			MetricSource: "alertmanager_alerts",
-			DefaultValue: 0.0, // 0 = unlimited
-			MinValue:     0.0,
-			MaxValue:     1000000.0,
+			DefaultValue: int64(0), // 0 = unlimited - Integer value
+			MinValue:     int64(0),
+			MaxValue:     int64(1000000),
 			BufferFactor: 50.0,
 			Enabled:      false,
 			Description:  "Maximum number of alerts",
@@ -255,9 +255,9 @@ func GetDefaultLimitDefinitions() map[string]LimitDefinition {
 			Name:         "alertmanager_max_alerts_size_bytes",
 			Type:         "size",
 			MetricSource: "alertmanager_alerts_size_bytes",
-			DefaultValue: 0.0, // 0 = unlimited
-			MinValue:     0.0,
-			MaxValue:     100000000.0, // 100MB
+			DefaultValue: int64(0), // 0 = unlimited - Integer value
+			MinValue:     int64(0),
+			MaxValue:     int64(100000000), // 100MB
 			BufferFactor: 50.0,
 			Enabled:      false,
 			Description:  "Maximum size of all alerts in bytes",
@@ -268,7 +268,7 @@ func GetDefaultLimitDefinitions() map[string]LimitDefinition {
 			Name:         "compactor_blocks_retention_period",
 			Type:         "duration",
 			MetricSource: "",
-			DefaultValue: "0s", // 0 = unlimited
+			DefaultValue: "0s", // 0 = unlimited - Keep as string for duration
 			MinValue:     "0s",
 			MaxValue:     "8760h", // 1 year
 			BufferFactor: 0.0,
@@ -281,9 +281,9 @@ func GetDefaultLimitDefinitions() map[string]LimitDefinition {
 			Name:         "store_gateway_tenant_shard_size",
 			Type:         "count",
 			MetricSource: "",
-			DefaultValue: 0.0, // 0 = no sharding
-			MinValue:     0.0,
-			MaxValue:     1000.0,
+			DefaultValue: int64(0), // 0 = no sharding - Integer value
+			MinValue:     int64(0),
+			MaxValue:     int64(1000),
 			BufferFactor: 0.0,
 			Enabled:      false,
 			Description:  "Tenant shard size for store gateway",
@@ -294,9 +294,9 @@ func GetDefaultLimitDefinitions() map[string]LimitDefinition {
 			Name:         "max_label_names_per_series",
 			Type:         "count",
 			MetricSource: "prometheus_tsdb_head_series",
-			DefaultValue: 30.0,
-			MinValue:     1.0,
-			MaxValue:     1000.0,
+			DefaultValue: int64(30), // Integer value
+			MinValue:     int64(1),
+			MaxValue:     int64(1000),
 			BufferFactor: 20.0,
 			Enabled:      false,
 			Description:  "Maximum label names per series",
@@ -305,9 +305,9 @@ func GetDefaultLimitDefinitions() map[string]LimitDefinition {
 			Name:         "max_label_name_length",
 			Type:         "size",
 			MetricSource: "",
-			DefaultValue: 1024.0,
-			MinValue:     10.0,
-			MaxValue:     10000.0,
+			DefaultValue: int64(1024), // Integer value
+			MinValue:     int64(10),
+			MaxValue:     int64(10000),
 			BufferFactor: 0.0,
 			Enabled:      false,
 			Description:  "Maximum length of label names",
@@ -316,9 +316,9 @@ func GetDefaultLimitDefinitions() map[string]LimitDefinition {
 			Name:         "max_label_value_length",
 			Type:         "size",
 			MetricSource: "",
-			DefaultValue: 2048.0,
-			MinValue:     10.0,
-			MaxValue:     100000.0,
+			DefaultValue: int64(2048), // Integer value
+			MinValue:     int64(10),
+			MaxValue:     int64(100000),
 			BufferFactor: 0.0,
 			Enabled:      false,
 			Description:  "Maximum length of label values",
@@ -329,7 +329,7 @@ func GetDefaultLimitDefinitions() map[string]LimitDefinition {
 			Name:         "out_of_order_time_window",
 			Type:         "duration",
 			MetricSource: "",
-			DefaultValue: "0s", // 0 = disabled
+			DefaultValue: "0s", // 0 = disabled - Keep as string for duration
 			MinValue:     "0s",
 			MaxValue:     "1h",
 			BufferFactor: 0.0,
