@@ -222,7 +222,7 @@ func (bp *BlastProtector) EnterEmergencyMode(reason string) {
 	bp.state = StateOpen
 	bp.lastStateChange = time.Now()
 
-	bp.log.Error(nil, "EMERGENCY MODE ACTIVATED", "reason", reason)
+	bp.log.Error(fmt.Errorf("emergency mode activated: %s", reason), "EMERGENCY MODE ACTIVATED", "reason", reason)
 
 	// Send emergency alerts
 	bp.sendEmergencyAlert("emergency_mode_activated", reason, "critical")
@@ -245,7 +245,7 @@ func (bp *BlastProtector) EnterPanicMode(reason string) {
 	bp.state = StateOpen
 	bp.lastStateChange = time.Now()
 
-	bp.log.Error(nil, "PANIC MODE ACTIVATED", "reason", reason)
+	bp.log.Error(fmt.Errorf("panic mode activated: %s", reason), "PANIC MODE ACTIVATED", "reason", reason)
 
 	// Send panic alerts
 	bp.sendEmergencyAlert("panic_mode_activated", reason, "critical")
@@ -499,7 +499,7 @@ func (bp *BlastProtector) executeEmergencyActions() {
 
 func (bp *BlastProtector) executePanicActions() {
 	// Execute even more aggressive actions in panic mode
-	bp.log.Error(nil, "executing panic mode actions")
+	bp.log.Error(fmt.Errorf("executing panic mode actions"), "executing panic mode actions")
 	
 	// Could implement additional panic actions like:
 	// - Temporary service degradation
@@ -515,7 +515,7 @@ func (bp *BlastProtector) isRecoveryPossible() bool {
 
 func (bp *BlastProtector) sendEmergencyAlert(alertType, reason, severity string) {
 	// TODO: Integrate with alerting system
-	bp.log.Error(nil, "EMERGENCY ALERT", 
+	bp.log.Error(fmt.Errorf("emergency alert: %s - %s", alertType, reason), "EMERGENCY ALERT", 
 		"type", alertType,
 		"reason", reason,
 		"severity", severity,
