@@ -130,6 +130,19 @@ data:
       {{- if eq .Values.auditLog.storageType "configmap" }}
       configMapName: {{ .Values.auditLog.configMapName | quote }}
       {{- end }}
+      {{- if .Values.auditLog.externalStorage }}
+      externalStorage:
+      {{- range $key, $value := .Values.auditLog.externalStorage }}
+        {{ $key }}: {{ $value | toJson }}
+      {{- end }}
+      {{- end }}
+      retention:
+        retentionPeriod: {{ .Values.auditLog.retention.retentionPeriod | quote }}
+        maxEntries: {{ .Values.auditLog.retention.maxEntries }}
+        maxSizeBytes: {{ .Values.auditLog.retention.maxSizeBytes }}
+        cleanupInterval: {{ .Values.auditLog.retention.cleanupInterval | quote }}
+        cleanupBatchSize: {{ .Values.auditLog.retention.cleanupBatchSize }}
+        emergencyThresholdPercent: {{ .Values.auditLog.retention.emergencyThresholdPercent }}
 
     dynamicLimits:
       enabled: {{ .Values.dynamicLimits.enabled }}

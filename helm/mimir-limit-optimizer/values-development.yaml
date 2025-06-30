@@ -1,0 +1,98 @@
+# Development Environment Values for Mimir Limit Optimizer
+# Conservative audit logging for development and testing
+
+# Controller configuration for development
+controller:
+  mode: "dry-run"  # Safe dry-run mode for development
+  bufferPercentage: 25  # Higher buffer for safety in dev
+  updateInterval: "10m"  # Less frequent updates for development
+
+# Conservative resource allocation for development
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 50m
+    memory: 64Mi
+
+# Development audit log configuration with conservative retention
+auditLog:
+  enabled: true
+  storageType: "configmap"
+  maxEntries: 500  # Lower limit for development
+  configMapName: "mimir-limit-optimizer-audit-dev"
+
+  # Development-optimized retention policies
+  retention:
+    # Keep audit logs for 1 day only in development
+    retentionPeriod: "24h"
+    
+    # Lower entry limit for development
+    maxEntries: 500
+    
+    # Conservative size limit for development
+    maxSizeBytes: 409600  # 400KB
+    
+    # Less frequent cleanup in development
+    cleanupInterval: "2h"
+    
+    # Smaller batch size for development
+    cleanupBatchSize: 50
+    
+    # Standard emergency cleanup threshold
+    emergencyThresholdPercent: 90.0
+
+# Circuit breaker disabled for development (allows unrestricted testing)
+circuitBreaker:
+  enabled: false
+  runtimeEnabled: false
+
+# Cost control enabled but without enforcement for development
+costControl:
+  enabled: true
+  enforceBudget: false  # Monitor costs but don't enforce in dev
+
+# Basic monitoring for development
+serviceMonitor:
+  enabled: false  # Disable in development to reduce overhead
+
+# No leader election needed in single-instance development
+leaderElection:
+  enabled: false
+
+# Development logging with more verbose output
+logging:
+  level: "debug"  # More verbose logging for development
+  format: "text"  # Human-readable format for development
+
+# Relaxed health probes for development
+healthProbes:
+  liveness:
+    enabled: true
+    initialDelaySeconds: 30
+    periodSeconds: 60
+    timeoutSeconds: 5
+    failureThreshold: 5  # More tolerant in development
+  readiness:
+    enabled: true
+    initialDelaySeconds: 5
+    periodSeconds: 30
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+# Enable synthetic mode for testing
+synthetic:
+  enabled: true
+  tenantCount: 5
+
+# Development-specific tenant scoping (skip production tenants)
+tenantScoping:
+  skipList:
+    - "prod-*"
+    - "production-*"
+    - "live-*"
+  includeList:
+    - "dev-*"
+    - "test-*"
+    - "staging-*" 
