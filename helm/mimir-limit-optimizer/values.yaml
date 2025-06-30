@@ -149,6 +149,32 @@ metricsDiscovery:
   # Port number (fallback if portName doesn't work)
   port: 8080
 
+  # Multi-tenant discovery configuration (v2.1.0+ feature)
+  tenantDiscovery:
+    # Tenant ID to use for metrics queries in multi-tenant setups
+    metricsTenantID: ""
+    
+    # Custom headers for multi-tenant authentication
+    tenantHeaders: {}
+      # X-Scope-OrgID: "your-tenant-id"
+      # Authorization: "Bearer your-token"
+    
+    # Fallback list of known tenants (used when metrics discovery fails)
+    fallbackTenants: []
+      # - "tenant-1"
+      # - "tenant-2"
+    
+    # ConfigMaps containing tenant information to parse
+    configMapNames: []
+      # - "mimir-runtime-overrides"
+      # - "tenant-configs"
+    
+    # Enable synthetic tenant generation for testing
+    enableSynthetic: false
+    
+    # Number of synthetic tenants to generate
+    syntheticCount: 3
+
 # Optional fallback metrics endpoint (e.g., Prometheus URL)
 metricsEndpoint: ""
 
@@ -243,6 +269,17 @@ auditLog:
 
   # ConfigMap name for audit storage (if storageType is "configmap")
   configMapName: "mimir-limit-optimizer-audit"
+
+# Dynamic Limits Configuration (v2.0.0+ feature)
+dynamicLimits:
+  # Enable dynamic limits system (supports 30+ Mimir limits)
+  enabled: true
+  
+  # Default buffer percentage for dynamic limits
+  defaultBuffer: 20.0
+  
+  # Auto-detect available Mimir limits from configuration
+  autoDetect: true
 
 # Synthetic mode for testing
 synthetic:
