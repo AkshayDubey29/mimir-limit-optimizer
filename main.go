@@ -22,6 +22,7 @@ import (
 var (
 	scheme   = runtime.NewScheme()
 	setupLog = ctrl.Log.WithName("setup")
+	Version  = "1.0.0" // This will be updated automatically by the release workflow
 )
 
 func init() {
@@ -130,6 +131,5 @@ func main() {
 }
 
 func getBuildInfo() string {
-	// This would be populated by build flags in a real deployment
-	return "dev"
+	return Version
 } 

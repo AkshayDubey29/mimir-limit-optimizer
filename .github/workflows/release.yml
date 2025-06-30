@@ -1,0 +1,195 @@
+name: "Release Management"
+
+on:
+  workflow_dispatch:
+    inputs:
+      version_type:
+        description: 'Version bump type'
+        required: true
+        default: 'patch'
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+      custom_version:
+        description: 'Custom version (optional, overrides version_type)'
+        required: false
+        type: string
+      prerelease:
+        description: 'Mark as pre-release'
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  create-release:
+    name: Create New Release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        token: ${{ secrets.GITHUB_TOKEN }}
+        
+    - name: Configure Git
+      run: |
+        git config --global user.name "github-actions[bot]"
+        git config --global user.email "github-actions[bot]@users.noreply.github.com"
+        
+    - name: Get current version
+      id: current_version
+      run: |
+        # Get the latest tag, default to v0.0.0 if no tags exist
+        CURRENT_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+        CURRENT_VERSION=${CURRENT_TAG#v}
+        echo "current_tag=$CURRENT_TAG" >> $GITHUB_OUTPUT
+        echo "current_version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+        echo "Current version: $CURRENT_VERSION"
+        
+    - name: Calculate new version
+      id: new_version
+      run: |
+        CURRENT_VERSION="${{ steps.current_version.outputs.current_version }}"
+        
+        if [ -n "${{ github.event.inputs.custom_version }}" ]; then
+          NEW_VERSION="${{ github.event.inputs.custom_version }}"
+          echo "Using custom version: $NEW_VERSION"
+        else
+          # Parse current version
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT_VERSION"
+          
+          case "${{ github.event.inputs.version_type }}" in
+            major)
+              MAJOR=$((MAJOR + 1))
+              MINOR=0
+              PATCH=0
+              ;;
+            minor)
+              MINOR=$((MINOR + 1))
+              PATCH=0
+              ;;
+            patch)
+              PATCH=$((PATCH + 1))
+              ;;
+          esac
+          
+          NEW_VERSION="$MAJOR.$MINOR.$PATCH"
+          echo "Calculated new version: $NEW_VERSION"
+        fi
+        
+        echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
+        echo "tag=v$NEW_VERSION" >> $GITHUB_OUTPUT
+        
+    - name: Update Chart.yaml
+      run: |
+        sed -i "s/^version: .*/version: ${{ steps.new_version.outputs.version }}/" helm/mimir-limit-optimizer/Chart.yaml
+        sed -i "s/^appVersion: .*/appVersion: \"${{ steps.new_version.outputs.version }}\"/" helm/mimir-limit-optimizer/Chart.yaml
+        
+        echo "Updated Chart.yaml:"
+        cat helm/mimir-limit-optimizer/Chart.yaml
+        
+    - name: Update version in main.go
+      run: |
+        # Add version constant to main.go if it doesn't exist
+        if ! grep -q "var Version" main.go; then
+          sed -i '1i\\nvar Version = "${{ steps.new_version.outputs.version }}"' main.go
+        else
+          sed -i 's/var Version = .*/var Version = "${{ steps.new_version.outputs.version }}"/' main.go
+        fi
+        
+    - name: Commit version changes
+      run: |
+        git add helm/mimir-limit-optimizer/Chart.yaml main.go
+        git commit -m "chore: bump version to ${{ steps.new_version.outputs.version }}"
+        
+    - name: Create and push tag
+      run: |
+        git tag -a "${{ steps.new_version.outputs.tag }}" -m "Release ${{ steps.new_version.outputs.tag }}"
+        git push origin main
+        git push origin "${{ steps.new_version.outputs.tag }}"
+        
+    - name: Generate changelog
+      id: changelog
+      run: |
+        # Generate changelog between current and previous version
+        PREVIOUS_TAG="${{ steps.current_version.outputs.current_tag }}"
+        NEW_TAG="${{ steps.new_version.outputs.tag }}"
+        
+        echo "## 🚀 What's Changed" > changelog.md
+        echo "" >> changelog.md
+        
+        if [ "$PREVIOUS_TAG" != "v0.0.0" ]; then
+          # Get commits between tags
+          git log --pretty=format:"- %s (%h)" $PREVIOUS_TAG..HEAD >> changelog.md
+        else
+          echo "- Initial release of Mimir Limit Optimizer" >> changelog.md
+          echo "- Enterprise-grade Kubernetes-native controller for Grafana Mimir" >> changelog.md
+          echo "- Dynamic per-tenant limit management with intelligent optimization" >> changelog.md
+          echo "- Cost control and budget enforcement capabilities" >> changelog.md
+          echo "- Circuit breaker protection against metric blasts" >> changelog.md
+          echo "- Comprehensive alerting and monitoring integration" >> changelog.md
+        fi
+        
+        echo "" >> changelog.md
+        echo "## 📦 Installation" >> changelog.md
+        echo "" >> changelog.md
+        echo "**Docker Image:**" >> changelog.md
+        echo '```bash' >> changelog.md
+        echo "ghcr.io/akshaydubey29/mimir-limit-optimizer:$NEW_TAG" >> changelog.md
+        echo '```' >> changelog.md
+        echo "" >> changelog.md
+        echo "**Helm Chart:**" >> changelog.md
+        echo '```bash' >> changelog.md
+        echo "helm install mimir-limit-optimizer \\" >> changelog.md
+        echo "  oci://ghcr.io/akshaydubey29/charts/mimir-limit-optimizer \\" >> changelog.md
+        echo "  --version ${{ steps.new_version.outputs.version }}" >> changelog.md
+        echo '```' >> changelog.md
+        
+        cat changelog.md
+        
+    - name: Wait for CI to complete
+      run: |
+        echo "Waiting for CI pipeline to complete..."
+        sleep 30
+        
+        # Check if the tag-triggered workflow has started
+        for i in {1..20}; do
+          WORKFLOW_STATUS=$(gh run list --workflow=ci.yml --limit=1 --json status --jq '.[0].status' || echo "not_found")
+          if [ "$WORKFLOW_STATUS" = "completed" ] || [ "$WORKFLOW_STATUS" = "in_progress" ]; then
+            echo "CI workflow found with status: $WORKFLOW_STATUS"
+            break
+          fi
+          echo "Waiting for CI workflow to start... (attempt $i/20)"
+          sleep 10
+        done
+        
+        # Wait for completion if in progress
+        if [ "$WORKFLOW_STATUS" = "in_progress" ]; then
+          echo "Waiting for CI workflow to complete..."
+          gh run watch $(gh run list --workflow=ci.yml --limit=1 --json databaseId --jq '.[0].databaseId')
+        fi
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        
+    - name: Trigger Docker build
+      run: |
+        # The CI workflow should have been triggered by the tag push
+        echo "Docker build should be triggered automatically by the tag: ${{ steps.new_version.outputs.tag }}"
+        
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: ${{ steps.new_version.outputs.tag }}
+        name: Mimir Limit Optimizer ${{ steps.new_version.outputs.tag }}
+        body_path: changelog.md
+        draft: false
+        prerelease: ${{ github.event.inputs.prerelease }}
+        make_latest: true
+        generate_release_notes: true
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 

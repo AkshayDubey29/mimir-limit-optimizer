@@ -95,7 +95,13 @@ jobs:
           type=ref,event=pr
           type=semver,pattern={{version}}
           type=semver,pattern={{major}}.{{minor}}
+          type=semver,pattern={{major}}
           type=sha,prefix={{branch}}-
+        labels: |
+          org.opencontainers.image.title=Mimir Limit Optimizer
+          org.opencontainers.image.description=Enterprise-grade Kubernetes-native controller for dynamically managing per-tenant limits in Grafana Mimir
+          org.opencontainers.image.vendor=Akshay Dubey
+          org.opencontainers.image.licenses=Apache-2.0
           
     - name: Build and push Docker image
       uses: docker/build-push-action@v5
@@ -148,23 +154,113 @@ jobs:
       with:
         fetch-depth: 0
         
+    - name: Extract version from tag
+      id: version
+      run: |
+        VERSION=${GITHUB_REF#refs/tags/v}
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        echo "Version: $VERSION"
+        
     - name: Set up Helm
       uses: azure/setup-helm@v3
       with:
         version: '3.12.0'
         
+    - name: Update Helm chart version
+      run: |
+        # Update Chart.yaml with the new version
+        sed -i "s/^version: .*/version: ${{ steps.version.outputs.version }}/" helm/mimir-limit-optimizer/Chart.yaml
+        sed -i "s/^appVersion: .*/appVersion: \"${{ steps.version.outputs.version }}\"/" helm/mimir-limit-optimizer/Chart.yaml
+        
+        # Verify the changes
+        echo "Updated Chart.yaml:"
+        cat helm/mimir-limit-optimizer/Chart.yaml
+        
+    - name: Create charts directory
+      run: mkdir -p charts
+        
     - name: Package Helm chart
       run: |
         helm package ./helm/mimir-limit-optimizer --destination ./charts/
+        ls -la charts/
+        
+    - name: Generate release notes
+      id: release_notes
+      run: |
+        cat > release_notes.md << 'EOF'
+        ## 🚀 Mimir Limit Optimizer v${{ steps.version.outputs.version }}
+        
+        ### 🎯 What's New
+        - Enterprise-grade Kubernetes-native controller for Grafana Mimir
+        - Dynamic per-tenant limit management with intelligent optimization
+        - Cost control and budget enforcement capabilities
+        - Circuit breaker protection against metric blasts
+        - Comprehensive alerting and monitoring integration
+        
+        ### 📦 Deployment Options
+        
+        **Docker Image:**
+        ```bash
+        ghcr.io/akshaydubey29/mimir-limit-optimizer:v${{ steps.version.outputs.version }}
+        ```
+        
+        **Helm Chart:**
+        ```bash
+        # Add the repository (when published)
+        helm repo add mimir-limit-optimizer https://akshaydubey29.github.io/mimir-limit-optimizer
+        
+        # Install the chart
+        helm install mimir-limit-optimizer mimir-limit-optimizer/mimir-limit-optimizer \
+          --version ${{ steps.version.outputs.version }} \
+          --namespace mimir-limit-optimizer \
+          --create-namespace
+        ```
+        
+        **Direct Helm Install:**
+        ```bash
+        # Download and install the chart directly
+        curl -L https://github.com/AkshayDubey29/mimir-limit-optimizer/releases/download/v${{ steps.version.outputs.version }}/mimir-limit-optimizer-${{ steps.version.outputs.version }}.tgz -o mimir-limit-optimizer.tgz
+        helm install mimir-limit-optimizer mimir-limit-optimizer.tgz
+        ```
+        
+        ### 🔧 Key Features
+        - **Cost Control**: Real-time cost calculation and budget enforcement
+        - **Circuit Breaker**: Protection against ingestion spikes and query floods  
+        - **Smart Limits**: Dynamic adjustment based on usage patterns
+        - **Multi-Mode**: Dry-run for observation, production for enforcement
+        - **Enterprise Ready**: Comprehensive alerting, audit logging, and monitoring
+        
+        ### 📊 Supported Integrations
+        - Grafana Mimir (all versions)
+        - Prometheus metrics scraping
+        - Kubernetes native RBAC
+        - Slack, PagerDuty, Email alerting
+        - Custom webhook integrations
+        
+        ### 🛡️ Security & Compliance
+        - Container security scanning with Trivy
+        - CodeQL security analysis
+        - Kubernetes security best practices
+        - Audit logging for compliance
+        
+        ### 📖 Documentation
+        - [Installation Guide](https://github.com/AkshayDubey29/mimir-limit-optimizer#installation)
+        - [Configuration Reference](https://github.com/AkshayDubey29/mimir-limit-optimizer#configuration)
+        - [Operating Modes](https://github.com/AkshayDubey29/mimir-limit-optimizer#operating-modes)
+        - [Troubleshooting](https://github.com/AkshayDubey29/mimir-limit-optimizer#troubleshooting)
+        EOF
         
     - name: Create Release
       uses: softprops/action-gh-release@v1
       with:
+        tag_name: v${{ steps.version.outputs.version }}
+        name: Mimir Limit Optimizer v${{ steps.version.outputs.version }}
+        body_path: release_notes.md
         draft: false
         prerelease: false
-        generate_release_notes: true
         files: |
           charts/*.tgz
+        make_latest: true
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
