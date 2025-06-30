@@ -424,26 +424,7 @@ func (p *ConfigMapPatcher) restartDeployment(ctx context.Context, deploymentName
 	return nil
 }
 
-func (p *ConfigMapPatcher) logDryRunChanges(limits map[string]*analyzer.TenantLimits) error {
-	p.log.Info("DRY-RUN: Would apply the following limits:")
-	
-	for tenant, limit := range limits {
-		p.log.Info("DRY-RUN: Tenant limits",
-			"tenant", tenant,
-			"ingestion_rate", limit.IngestionRate,
-			"ingestion_burst", limit.IngestionBurst,
-			"max_series", limit.MaxSeries,
-			"max_samples_per_query", limit.MaxSamplesPerQuery,
-			"reason", limit.Reason,
-		)
 
-		// Update recommended limits metrics for dry-run mode
-		metrics.TenantMetricsInstance.SetTenantRecommendedLimits(tenant, "ingestion_rate", limit.IngestionRate)
-		metrics.TenantMetricsInstance.SetTenantRecommendedLimits(tenant, "max_series", limit.MaxSeries)
-	}
-
-	return nil
-}
 
 func (p *ConfigMapPatcher) logChanges(oldOverrides, newOverrides map[string]interface{}, limits map[string]*analyzer.TenantLimits) {
 	if p.auditLog == nil {
