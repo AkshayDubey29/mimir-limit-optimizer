@@ -413,14 +413,14 @@ func (p *ConfigMapPatcher) applyLimitsToOverrides(overrides map[string]interface
 
 		// ADD METADATA COMMENTS if there were updates
 		if hasUpdates {
-			// Add metadata about the optimization
+			// Add metadata about the optimization with all fields properly commented
 			timestamp := time.Now().Format("2006-01-02T15:04:05Z07:00")
-			existingTenantConfig["# mimir-limit-optimizer"] = map[string]interface{}{
-				"last_updated":    timestamp,
-				"updated_limits":  updatedLimits,
-				"reason":          tenantLimits.Reason,
-				"source":          tenantLimits.Source,
-			}
+			// Comment all metadata fields so they don't interfere with Mimir configuration parsing
+			existingTenantConfig["# mimir-limit-optimizer"] = "Optimized by mimir-limit-optimizer"
+			existingTenantConfig["# last_updated"] = timestamp
+			existingTenantConfig["# updated_limits"] = fmt.Sprintf("%v", updatedLimits)
+			existingTenantConfig["# reason"] = tenantLimits.Reason
+			existingTenantConfig["# source"] = tenantLimits.Source
 
 			// Update the tenant configuration (preserving all existing limits)
 			tenantOverrides[tenant] = existingTenantConfig
@@ -660,10 +660,15 @@ func (p *ConfigMapPatcher) parseCurrentLimits(overrides map[string]interface{}) 
 			Source:      "current-configmap",
 		}
 
-		// Parse all configured dynamic limits
+		// Parse all configured dynamic limits, skipping commented metadata fields
 		for limitName, limitDef := range p.config.DynamicLimits.LimitDefinitions {
 			if limitDef.Enabled {
 				if val, exists := tenantLimits[limitName]; exists {
+					// Skip commented metadata fields (they start with #)
+					if strings.HasPrefix(limitName, "#") {
+						continue
+					}
+					
 					// Convert value based on limit type
 					convertedVal, err := p.convertLimitValue(val, limitDef.Type)
 					if err != nil {
@@ -674,6 +679,24 @@ func (p *ConfigMapPatcher) parseCurrentLimits(overrides map[string]interface{}) 
 					limit.Limits[limitName] = convertedVal
 				}
 			}
+		}
+		
+		// Also parse any additional limits that exist in the config but aren't in our definitions
+		// This preserves backwards compatibility and manual configurations
+		for fieldName, fieldValue := range tenantLimits {
+			// Skip commented metadata fields
+			if strings.HasPrefix(fieldName, "#") {
+				continue
+			}
+			
+			// Skip if already processed above
+			if _, alreadyProcessed := limit.Limits[fieldName]; alreadyProcessed {
+				continue
+			}
+			
+			// Add any additional limit that exists in the configuration
+			// This ensures existing manual limits are preserved
+			limit.Limits[fieldName] = fieldValue
 		}
 
 		if len(limit.Limits) > 0 {
