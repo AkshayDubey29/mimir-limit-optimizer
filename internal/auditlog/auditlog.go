@@ -568,13 +568,44 @@ func (n *NoOpAuditLogger) Close() error                                         
 
 // NewLimitUpdateEntry creates an audit entry for limit updates
 func NewLimitUpdateEntry(tenant, reason string, oldLimits, newLimits map[string]interface{}) *AuditEntry {
+	// Create proper old vs new changes map
+	changes := make(map[string]interface{})
+	
+	// Process all new limits
+	for key, newValue := range newLimits {
+		oldValue, hadOldValue := oldLimits[key]
+		
+		// Always include the change, even if it's a new limit (old = nil)
+		change := map[string]interface{}{
+			"new": newValue,
+		}
+		
+		if hadOldValue {
+			change["old"] = oldValue
+		} else {
+			change["old"] = nil // Explicitly show this is a new limit
+		}
+		
+		changes[key] = change
+	}
+	
+	// Also check for removed limits (existed in old but not in new)
+	for key, oldValue := range oldLimits {
+		if _, existsInNew := newLimits[key]; !existsInNew {
+			changes[key] = map[string]interface{}{
+				"old": oldValue,
+				"new": nil, // Explicitly show this limit was removed
+			}
+		}
+	}
+	
 	return &AuditEntry{
 		Tenant:    tenant,
 		Action:    "update-limits",
 		Reason:    reason,
-		Changes:   newLimits,
-		OldValues: oldLimits,
-		NewValues: newLimits,
+		Changes:   changes,     // Now contains proper old vs new comparison
+		OldValues: oldLimits,   // Keep for backward compatibility
+		NewValues: newLimits,   // Keep for backward compatibility
 		Success:   true,
 	}
 }
@@ -597,9 +628,11 @@ func NewSpikeDetectionEntry(tenant, metricName string, oldValue, newValue float6
 		Action: "spike-detected",
 		Reason: "automatic-spike-scaling",
 		Changes: map[string]interface{}{
-			"metric":    metricName,
-			"old_value": oldValue,
-			"new_value": newValue,
+			"metric": metricName,
+			"value": map[string]interface{}{
+				"old": oldValue,
+				"new": newValue,
+			},
 		},
 		Success: true,
 	}
