@@ -48,7 +48,6 @@ type ConfigMapPatcher struct {
 	auditLog      auditlog.AuditLogger
 	log           logr.Logger
 	lastBackup    *corev1.ConfigMap
-	rollbackData  map[string]interface{}
 }
 
 // NewConfigMapPatcher creates a new ConfigMapPatcher
@@ -189,7 +188,9 @@ func (p *ConfigMapPatcher) RollbackChanges(ctx context.Context) error {
 			Reason:    "manual-rollback",
 			Changes:   map[string]interface{}{"rollback": "restored from backup"},
 		}
-		p.auditLog.LogEntry(entry)
+		if err := p.auditLog.LogEntry(entry); err != nil {
+			p.log.Error(err, "failed to log audit entry for rollback")
+		}
 	}
 
 	metrics.ConfigMapMetricsInstance.IncConfigMapUpdates("rollback-success")
@@ -453,7 +454,9 @@ func (p *ConfigMapPatcher) logChanges(oldOverrides, newOverrides map[string]inte
 			},
 		}
 		
-		p.auditLog.LogEntry(entry)
+		if err := p.auditLog.LogEntry(entry); err != nil {
+			p.log.Error(err, "failed to log audit entry for tenant limits", "tenant", tenant)
+		}
 		metrics.TenantMetricsInstance.IncTenantLimitsUpdated(tenant, limit.Reason)
 	}
 }

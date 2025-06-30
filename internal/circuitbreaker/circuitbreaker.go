@@ -43,7 +43,6 @@ type BlastProtector struct {
 	state          CircuitBreakerState
 	failures       int
 	requests       int
-	lastFailureTime time.Time
 	lastStateChange time.Time
 	halfOpenRequests int
 	
@@ -65,7 +64,6 @@ type BlastProtector struct {
 type AutoConfig struct {
 	mu                   sync.RWMutex
 	tenantThresholds     map[string]*TenantThresholds
-	globalThresholds     *TenantThresholds
 	currentLimits        map[string]*analyzer.TenantLimits
 	lastUpdate           time.Time
 	observationStartTime time.Time
