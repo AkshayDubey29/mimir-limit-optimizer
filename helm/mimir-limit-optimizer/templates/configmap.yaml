@@ -13,7 +13,7 @@ data:
     {{- else }}
     mode: {{ .Values.controller.mode | quote }}
     bufferPercentage: {{ .Values.controller.bufferPercentage }}
-    updateInterval: {{ .Values.controller.updateInterval | quote }}
+          updateInterval: {{.Values.controller.updateInterval}}
 
     mimir:
       namespace: {{ .Values.mimir.namespace | quote }}
@@ -55,12 +55,12 @@ data:
     eventSpike:
       enabled: {{ .Values.eventSpike.enabled }}
       threshold: {{ .Values.eventSpike.threshold }}
-      detectionWindow: {{ .Values.eventSpike.detectionWindow | quote }}
-      cooldownPeriod: {{ .Values.eventSpike.cooldownPeriod | quote }}
+              detectionWindow: {{.Values.eventSpike.detectionWindow}}
+        cooldownPeriod: {{.Values.eventSpike.cooldownPeriod}}
       maxSpikeMultiplier: {{ .Values.eventSpike.maxSpikeMultiplier }}
 
     trendAnalysis:
-      analysisWindow: {{ .Values.trendAnalysis.analysisWindow | quote }}
+              analysisWindow: {{.Values.trendAnalysis.analysisWindow}}
       percentile: {{ .Values.trendAnalysis.percentile }}
       useMovingAverage: {{ .Values.trendAnalysis.useMovingAverage }}
       includePeaks: {{ .Values.trendAnalysis.includePeaks }}
@@ -90,7 +90,7 @@ data:
         {{ $key }}: {{ $value }}
       {{- end }}
       {{- end }}
-      inactiveTenantTTL: {{ .Values.limits.inactiveTenantTTL | quote }}
+      inactiveTenantTTL: {{.Values.limits.inactiveTenantTTL}}
       {{- if .Values.limits.tenantTiers }}
       tenantTiers:
       {{- range $tierName, $tierConfig := .Values.limits.tenantTiers }}
@@ -129,7 +129,7 @@ data:
         enforceBudget: {{ .Values.costControl.globalBudget.enforceBudget }}
       alertThresholds: {{ toJson .Values.costControl.alertThresholds }}
       autoLimitReduction: {{ .Values.costControl.autoLimitReduction }}
-      estimationWindow: {{ .Values.costControl.estimationWindow | quote }}
+      estimationWindow: {{.Values.costControl.estimationWindow}}
       {{- if .Values.costControl.tenantBudgets }}
       tenantBudgets:
       {{- range $tenant, $budget := .Values.costControl.tenantBudgets }}
@@ -146,13 +146,13 @@ data:
       enabled: {{ .Values.circuitBreaker.enabled }}
       failureThreshold: {{ .Values.circuitBreaker.failureThreshold }}
       requestVolumeThreshold: {{ .Values.circuitBreaker.requestVolumeThreshold }}
-      sleepWindow: {{ .Values.circuitBreaker.sleepWindow | quote }}
+      sleepWindow: {{.Values.circuitBreaker.sleepWindow}}
       maxRequestsInHalfOpen: {{ .Values.circuitBreaker.maxRequestsInHalfOpen }}
       rateLimit:
         enabled: {{ .Values.circuitBreaker.rateLimit.enabled }}
         requestsPerSecond: {{ .Values.circuitBreaker.rateLimit.requestsPerSecond }}
         burstCapacity: {{ .Values.circuitBreaker.rateLimit.burstCapacity }}
-        window: {{ .Values.circuitBreaker.rateLimit.window | quote }}
+                  window: {{.Values.circuitBreaker.rateLimit.window}}
       blastProtection:
         useAutoThresholds: {{.Values.circuitBreaker.blastProtection.useAutoThresholds}}
         {{- if .Values.circuitBreaker.blastProtection.manualThresholds }}
@@ -177,7 +177,7 @@ data:
         {{- end }}
         {{- end }}
         autoEmergencyShutdown: {{.Values.circuitBreaker.blastProtection.autoEmergencyShutdown}}
-        recoveryTime: {{.Values.circuitBreaker.blastProtection.recoveryTime | quote}}
+        recoveryTime: {{.Values.circuitBreaker.blastProtection.recoveryTime}}
 
     emergency:
       enabled: {{ .Values.emergency.enabled }}
@@ -195,8 +195,8 @@ data:
         actions: {{ toJson .Values.emergency.panicMode.actions }}
       recoveryProcedures:
         autoRecovery: {{ .Values.emergency.recoveryProcedures.autoRecovery }}
-        checkInterval: {{ .Values.emergency.recoveryProcedures.checkInterval | quote }}
-        healthCheckTimeout: {{.Values.emergency.recoveryProcedures.healthCheckTimeout | quote}}
+                  checkInterval: {{.Values.emergency.recoveryProcedures.checkInterval}}
+        healthCheckTimeout: {{.Values.emergency.recoveryProcedures.healthCheckTimeout}}
         maxAttempts: {{ .Values.emergency.recoveryProcedures.maxAttempts }}
 
     alerting:
@@ -256,7 +256,7 @@ data:
       enabled: {{ .Values.performance.enabled }}
       cache:
         enabled: {{ .Values.performance.cache.enabled }}
-        ttl: {{ .Values.performance.cache.ttl | quote }}
+        ttl: {{.Values.performance.cache.ttl}}
         sizeMB: {{ .Values.performance.cache.sizeMB }}
         type: {{ .Values.performance.cache.type | quote }}
         {{- if eq .Values.performance.cache.type "redis" }}
@@ -272,7 +272,7 @@ data:
       batchProcessing:
         enabled: {{ .Values.performance.batchProcessing.enabled }}
         size: {{ .Values.performance.batchProcessing.size }}
-        timeout: {{ .Values.performance.batchProcessing.timeout | quote }}
+                  timeout: {{.Values.performance.batchProcessing.timeout}}
         maxConcurrent: {{ .Values.performance.batchProcessing.maxConcurrent }}
       resourceOptimization:
         cpuOptimization: {{ .Values.performance.resourceOptimization.cpuOptimization }}
