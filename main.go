@@ -4,7 +4,10 @@ package main
 
 import (
 	"flag"
+	"fmt"
+	"net/http"
 	"os"
+	"time"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -20,9 +23,13 @@ import (
 )
 
 var (
-	scheme   = runtime.NewScheme()
-	setupLog = ctrl.Log.WithName("setup")
-	Version  = "1.2.0" // This will be updated automatically by the release workflow
+	scheme    = runtime.NewScheme()
+	setupLog  = ctrl.Log.WithName("setup")
+	
+	// Build-time variables (injected by ldflags during build)
+	Version   = "dev"
+	Commit    = "unknown"
+	BuildDate = "unknown"
 )
 
 func init() {
@@ -35,6 +42,8 @@ func main() {
 	var enableLeaderElection bool
 	var probeAddr string
 	var logLevel string
+	var showVersion bool
+	var healthCheck bool
 
 	flag.StringVar(&configFile, "config", "", "Path to the configuration file.")
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
@@ -43,12 +52,30 @@ func main() {
 		"Enable leader election for controller manager. "+
 			"Enabling this will ensure there is only one active controller manager.")
 	flag.StringVar(&logLevel, "log-level", "info", "Log level (debug, info, warn, error)")
+	flag.BoolVar(&showVersion, "version", false, "Show version information and exit.")
+	flag.BoolVar(&healthCheck, "health-check", false, "Perform health check and exit.")
 
 	opts := zap.Options{
 		Development: false,
 	}
 	opts.BindFlags(flag.CommandLine)
 	flag.Parse()
+
+	// Handle version flag
+	if showVersion {
+		fmt.Println(getBuildInfo())
+		os.Exit(0)
+	}
+
+	// Handle health check flag
+	if healthCheck {
+		if err := performHealthCheck(probeAddr); err != nil {
+			fmt.Printf("Health check failed: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Println("Health check passed")
+		os.Exit(0)
+	}
 
 	// Set log level
 	switch logLevel {
@@ -131,5 +158,29 @@ func main() {
 }
 
 func getBuildInfo() string {
-	return Version
+	return fmt.Sprintf("mimir-limit-optimizer version %s (commit: %s, built: %s)", Version, Commit, BuildDate)
+}
+
+// performHealthCheck performs a health check against the health probe endpoint
+func performHealthCheck(probeAddr string) error {
+	// If probeAddr starts with ":", prepend localhost
+	if probeAddr[0] == ':' {
+		probeAddr = "localhost" + probeAddr
+	}
+	
+	client := &http.Client{
+		Timeout: 5 * time.Second,
+	}
+	
+	resp, err := client.Get(fmt.Sprintf("http://%s/healthz", probeAddr))
+	if err != nil {
+		return fmt.Errorf("failed to connect to health endpoint: %w", err)
+	}
+	defer resp.Body.Close()
+	
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("health check returned status %d", resp.StatusCode)
+	}
+	
+	return nil
 } 

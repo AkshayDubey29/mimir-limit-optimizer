@@ -1,44 +1,82 @@
-# Git
+# Git files
 .git
 .gitignore
-README.md
+.gitattributes
 
 # Documentation
-docs/
 *.md
+docs/
+examples/
 
-# IDE
+# Development files
 .vscode/
 .idea/
 *.swp
 *.swo
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Build artifacts
-bin/
-*.exe
-*.dll
-*.so
-*.dylib
+*~
 
 # Test files
 *_test.go
 testdata/
+coverage.out
+test-results/
+
+# Build artifacts
+bin/
+dist/
+*.o
+*.a
+*.so
+
+# IDE files
+.DS_Store
+Thumbs.db
+
+# CI/CD files
+.github/
+.travis.yml
+.circleci/
+Jenkinsfile
+
+# Dependencies that should be downloaded fresh
+vendor/ 
+
+# Local config files
+*.local
+.env*
+config.local.yaml
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.log
+
+# Kubernetes manifests (not needed in container)
+k8s/
+manifests/
+deploy/
 
 # Helm charts (not needed in container)
 helm/
+charts/
 
-# Development configs
-config.yaml
-*.yaml
-*.yml
+# Docker files (avoid recursive inclusion)
+Dockerfile*
+docker-compose*.yml
 
-# Logs
-*.log
+# License and contributing files
+LICENSE*
+CONTRIBUTING*
+MAINTAINERS*
+CODE_OF_CONDUCT*
+SECURITY*
 
-# Coverage
-coverage.out
-coverage.html 
+# Makefile and scripts
+Makefile
+scripts/
+*.sh
+
+# Coverage reports
+*.out
+*.html 
