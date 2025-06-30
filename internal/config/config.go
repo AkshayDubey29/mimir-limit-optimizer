@@ -113,6 +113,29 @@ type MetricsDiscoveryConfig struct {
 	
 	// Port number (if PortName is not used)
 	Port int `yaml:"port" json:"port"`
+	
+	// Tenant discovery configuration
+	TenantDiscovery TenantDiscoveryConfig `yaml:"tenantDiscovery" json:"tenantDiscovery"`
+}
+
+type TenantDiscoveryConfig struct {
+	// Fallback tenant list when metrics discovery fails
+	FallbackTenants []string `yaml:"fallbackTenants" json:"fallbackTenants"`
+	
+	// ConfigMap names to search for tenant configurations
+	ConfigMapNames []string `yaml:"configMapNames" json:"configMapNames"`
+	
+	// Enable synthetic tenant generation for testing
+	EnableSynthetic bool `yaml:"enableSynthetic" json:"enableSynthetic"`
+	
+	// Number of synthetic tenants to create
+	SyntheticCount int `yaml:"syntheticCount" json:"syntheticCount"`
+	
+	// Tenant ID to use for metrics collection in multi-tenant Mimir
+	MetricsTenantID string `yaml:"metricsTenantID" json:"metricsTenantID"`
+	
+	// Additional tenant headers (for custom auth)
+	TenantHeaders map[string]string `yaml:"tenantHeaders" json:"tenantHeaders"`
 }
 
 type EventSpikeConfig struct {
@@ -676,6 +699,14 @@ func GetDefaultConfig() *Config {
 			MetricsPath:          "/metrics",
 			PortName:             "http-metrics",
 			Port:                 8080,
+			TenantDiscovery: TenantDiscoveryConfig{
+				FallbackTenants:  []string{}, // Empty by default, user can configure
+				ConfigMapNames:   []string{"overrides", "mimir-runtime-overrides", "runtime-config"},
+				EnableSynthetic:  true,  // Enable synthetic tenants as final fallback
+				SyntheticCount:   3,     // Default to 3 synthetic tenants
+				MetricsTenantID:  "",    // Empty by default, user must configure for multi-tenant
+				TenantHeaders:    make(map[string]string), // Empty by default
+			},
 		},
 		EventSpike: EventSpikeConfig{
 			Enabled:            true,
@@ -839,6 +870,25 @@ func LoadConfig() (*Config, error) {
 
 		if err := yaml.Unmarshal(data, cfg); err != nil {
 			return nil, fmt.Errorf("failed to parse config file: %w", err)
+		}
+	}
+
+	return cfg, nil
+}
+
+// LoadConfigFromFile loads configuration from a specific file
+func LoadConfigFromFile(configFile string) (*Config, error) {
+	cfg := GetDefaultConfig()
+
+	// Load from specified file if provided
+	if configFile != "" {
+		data, err := os.ReadFile(configFile)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read config file %s: %w", configFile, err)
+		}
+
+		if err := yaml.Unmarshal(data, cfg); err != nil {
+			return nil, fmt.Errorf("failed to parse config file %s: %w", configFile, err)
 		}
 	}
 
