@@ -447,6 +447,8 @@ func (p *ConfigMapPatcher) isZeroValue(value interface{}) bool {
 		return v <= 0
 	case string:
 		return v == "" || v == "0s"
+	case bool:
+		return !v // false is the zero value for boolean
 	default:
 		return false
 	}
@@ -760,6 +762,33 @@ func (p *ConfigMapPatcher) convertLimitValue(value interface{}, limitType string
 			return v, nil // Keep as string for duration values
 		default:
 			return fmt.Sprintf("%v", v), nil
+		}
+	case "bool":
+		// BOOLEAN LIMITS SHOULD BE BOOLEANS (true/false)
+		switch v := value.(type) {
+		case bool:
+			return v, nil
+		case string:
+			if parsed, err := strconv.ParseBool(v); err == nil {
+				return parsed, nil
+			}
+			return nil, fmt.Errorf("cannot convert string %q to boolean value", v)
+		case int64:
+			return v != 0, nil // 0 = false, anything else = true
+		case int:
+			return v != 0, nil // 0 = false, anything else = true
+		case float64:
+			return v != 0.0, nil // 0.0 = false, anything else = true
+		default:
+			return nil, fmt.Errorf("unsupported value type %T for boolean limit", value)
+		}
+	case "string":
+		// STRING LIMITS SHOULD BE STRINGS
+		switch v := value.(type) {
+		case string:
+			return v, nil
+		default:
+			return fmt.Sprintf("%v", v), nil // Convert any type to string
 		}
 	default:
 		return value, nil // Return as-is for unknown types
