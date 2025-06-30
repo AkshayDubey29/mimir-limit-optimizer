@@ -1,0 +1,44 @@
+# Git
+.git
+.gitignore
+README.md
+
+# Documentation
+docs/
+*.md
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build artifacts
+bin/
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Test files
+*_test.go
+testdata/
+
+# Helm charts (not needed in container)
+helm/
+
+# Development configs
+config.yaml
+*.yaml
+*.yml
+
+# Logs
+*.log
+
+# Coverage
+coverage.out
+coverage.html 

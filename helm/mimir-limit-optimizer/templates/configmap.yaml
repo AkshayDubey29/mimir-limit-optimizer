@@ -1,0 +1,266 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "mimir-limit-optimizer.fullname" . }}-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "mimir-limit-optimizer.labels" . | nindent 4 }}
+data:
+  config.yaml: |
+    {{- if .Values.configOverride }}
+    {{ .Values.configOverride | nindent 4 }}
+    {{- else }}
+    mode: {{ .Values.controller.mode | quote }}
+    bufferPercentage: {{ .Values.controller.bufferPercentage }}
+    updateInterval: {{ .Values.controller.updateInterval | quote }}
+    
+    mimir:
+      namespace: {{ .Values.mimir.namespace | quote }}
+      configMapName: {{ .Values.mimir.configMapName | quote }}
+      triggerRollout: {{ .Values.mimir.triggerRollout }}
+      rolloutComponents:
+      {{- range .Values.mimir.rolloutComponents }}
+        - {{ . | quote }}
+      {{- end }}
+    
+    tenantScoping:
+      skipList:
+      {{- range .Values.tenantScoping.skipList }}
+        - {{ . | quote }}
+      {{- end }}
+      includeList:
+      {{- range .Values.tenantScoping.includeList }}
+        - {{ . | quote }}
+      {{- end }}
+      useRegex: {{ .Values.tenantScoping.useRegex }}
+    
+    metricsDiscovery:
+      enabled: {{ .Values.metricsDiscovery.enabled }}
+      namespace: {{ .Values.metricsDiscovery.namespace | quote }}
+      serviceLabelSelector: {{ .Values.metricsDiscovery.serviceLabelSelector | quote }}
+      serviceNames:
+      {{- range .Values.metricsDiscovery.serviceNames }}
+        - {{ . | quote }}
+      {{- end }}
+      metricsPath: {{ .Values.metricsDiscovery.metricsPath | quote }}
+      portName: {{ .Values.metricsDiscovery.portName | quote }}
+      port: {{ .Values.metricsDiscovery.port }}
+    
+    {{- if .Values.metricsEndpoint }}
+    metricsEndpoint: {{ .Values.metricsEndpoint | quote }}
+    {{- end }}
+    
+    eventSpike:
+      enabled: {{ .Values.eventSpike.enabled }}
+      threshold: {{ .Values.eventSpike.threshold }}
+      detectionWindow: {{ .Values.eventSpike.detectionWindow | quote }}
+      cooldownPeriod: {{ .Values.eventSpike.cooldownPeriod | quote }}
+      maxSpikeMultiplier: {{ .Values.eventSpike.maxSpikeMultiplier }}
+    
+    trendAnalysis:
+      analysisWindow: {{ .Values.trendAnalysis.analysisWindow | quote }}
+      percentile: {{ .Values.trendAnalysis.percentile }}
+      useMovingAverage: {{ .Values.trendAnalysis.useMovingAverage }}
+      includePeaks: {{ .Values.trendAnalysis.includePeaks }}
+      {{- if .Values.trendAnalysis.timeOfDayBuffers }}
+      timeOfDayBuffers:
+      {{- range $key, $value := .Values.trendAnalysis.timeOfDayBuffers }}
+        {{ $key | quote }}: {{ $value }}
+      {{- end }}
+      {{- end }}
+    
+    limits:
+      {{- if .Values.limits.minLimits }}
+      minLimits:
+      {{- range $key, $value := .Values.limits.minLimits }}
+        {{ $key }}: {{ $value }}
+      {{- end }}
+      {{- end }}
+      {{- if .Values.limits.maxLimits }}
+      maxLimits:
+      {{- range $key, $value := .Values.limits.maxLimits }}
+        {{ $key }}: {{ $value }}
+      {{- end }}
+      {{- end }}
+      {{- if .Values.limits.defaultLimits }}
+      defaultLimits:
+      {{- range $key, $value := .Values.limits.defaultLimits }}
+        {{ $key }}: {{ $value }}
+      {{- end }}
+      {{- end }}
+      inactiveTenantTTL: {{ .Values.limits.inactiveTenantTTL | quote }}
+      {{- if .Values.limits.tenantTiers }}
+      tenantTiers:
+      {{- range $tierName, $tierConfig := .Values.limits.tenantTiers }}
+        {{ $tierName }}:
+          bufferPercentage: {{ $tierConfig.bufferPercentage }}
+          {{- if $tierConfig.limits }}
+          limits:
+          {{- range $key, $value := $tierConfig.limits }}
+            {{ $key }}: {{ $value }}
+          {{- end }}
+          {{- end }}
+      {{- end }}
+      {{- end }}
+    
+    auditLog:
+      enabled: {{ .Values.auditLog.enabled }}
+      storageType: {{ .Values.auditLog.storageType | quote }}
+      maxEntries: {{ .Values.auditLog.maxEntries }}
+      {{- if eq .Values.auditLog.storageType "configmap" }}
+      configMapName: {{ .Values.auditLog.configMapName | quote }}
+      {{- end }}
+    
+    synthetic:
+      enabled: {{ .Values.synthetic.enabled }}
+      tenantCount: {{ .Values.synthetic.tenantCount }}
+    
+    costControl:
+      enabled: {{ .Values.costControl.enabled }}
+      costMethod: {{ .Values.costControl.costMethod | quote }}
+      costPerUnit: {{ .Values.costControl.costPerUnit }}
+      globalBudget:
+        daily: {{ .Values.costControl.globalBudget.daily }}
+        monthly: {{ .Values.costControl.globalBudget.monthly }}
+        annual: {{ .Values.costControl.globalBudget.annual }}
+        currency: {{ .Values.costControl.globalBudget.currency | quote }}
+        enforceBudget: {{ .Values.costControl.globalBudget.enforceBudget }}
+      alertThresholds: {{ toJson .Values.costControl.alertThresholds }}
+      autoLimitReduction: {{ .Values.costControl.autoLimitReduction }}
+      estimationWindow: {{ .Values.costControl.estimationWindow | quote }}
+      {{- if .Values.costControl.tenantBudgets }}
+      tenantBudgets:
+      {{- range $tenant, $budget := .Values.costControl.tenantBudgets }}
+        {{ $tenant }}:
+          daily: {{ $budget.daily }}
+          monthly: {{ $budget.monthly }}
+          annual: {{ $budget.annual }}
+          currency: {{ $budget.currency | quote }}
+          enforceBudget: {{ $budget.enforceBudget }}
+      {{- end }}
+      {{- end }}
+    
+    circuitBreaker:
+      enabled: {{ .Values.circuitBreaker.enabled }}
+      failureThreshold: {{ .Values.circuitBreaker.failureThreshold }}
+      requestVolumeThreshold: {{ .Values.circuitBreaker.requestVolumeThreshold }}
+      sleepWindow: {{ .Values.circuitBreaker.sleepWindow | quote }}
+      maxRequestsInHalfOpen: {{ .Values.circuitBreaker.maxRequestsInHalfOpen }}
+      rateLimit:
+        enabled: {{ .Values.circuitBreaker.rateLimit.enabled }}
+        requestsPerSecond: {{ .Values.circuitBreaker.rateLimit.requestsPerSecond }}
+        burstCapacity: {{ .Values.circuitBreaker.rateLimit.burstCapacity }}
+        window: {{ .Values.circuitBreaker.rateLimit.window | quote }}
+      blastProtection:
+        ingestionSpikeThreshold: {{ .Values.circuitBreaker.blastProtection.ingestionSpikeThreshold }}
+        querySpikeThreshold: {{ .Values.circuitBreaker.blastProtection.querySpikeThreshold }}
+        seriesSpikeThreshold: {{ .Values.circuitBreaker.blastProtection.seriesSpikeThreshold }}
+        autoEmergencyShutdown: {{ .Values.circuitBreaker.blastProtection.autoEmergencyShutdown }}
+        recoveryTime: {{ .Values.circuitBreaker.blastProtection.recoveryTime | quote }}
+    
+    emergency:
+      enabled: {{ .Values.emergency.enabled }}
+      {{- if .Values.emergency.webhookURL }}
+      webhookURL: {{ .Values.emergency.webhookURL | quote }}
+      {{- end }}
+      {{- if .Values.emergency.contacts }}
+      contacts: {{ toJson .Values.emergency.contacts }}
+      {{- end }}
+      panicMode:
+        enabled: {{ .Values.emergency.panicMode.enabled }}
+        cpuThreshold: {{ .Values.emergency.panicMode.cpuThreshold }}
+        memoryThreshold: {{ .Values.emergency.panicMode.memoryThreshold }}
+        errorRateThreshold: {{ .Values.emergency.panicMode.errorRateThreshold }}
+        actions: {{ toJson .Values.emergency.panicMode.actions }}
+      recoveryProcedures:
+        autoRecovery: {{ .Values.emergency.recoveryProcedures.autoRecovery }}
+        checkInterval: {{ .Values.emergency.recoveryProcedures.checkInterval | quote }}
+        healthCheckTimeout: {{ .Values.emergency.recoveryProcedures.healthCheckTimeout | quote }}
+        maxAttempts: {{ .Values.emergency.recoveryProcedures.maxAttempts }}
+    
+    alerting:
+      enabled: {{ .Values.alerting.enabled }}
+      slack:
+        enabled: {{ .Values.alerting.slack.enabled }}
+        {{- if .Values.alerting.slack.webhookURL }}
+        webhookURL: {{ .Values.alerting.slack.webhookURL | quote }}
+        {{- end }}
+        {{- if .Values.alerting.slack.channel }}
+        channel: {{ .Values.alerting.slack.channel | quote }}
+        {{- end }}
+      pagerDuty:
+        enabled: {{ .Values.alerting.pagerDuty.enabled }}
+        {{- if .Values.alerting.pagerDuty.integrationKey }}
+        integrationKey: {{ .Values.alerting.pagerDuty.integrationKey | quote }}
+        {{- end }}
+        {{- if .Values.alerting.pagerDuty.severity }}
+        severity: {{ .Values.alerting.pagerDuty.severity | quote }}
+        {{- end }}
+      email:
+        enabled: {{ .Values.alerting.email.enabled }}
+        {{- if .Values.alerting.email.smtpHost }}
+        smtpHost: {{ .Values.alerting.email.smtpHost | quote }}
+        smtpPort: {{ .Values.alerting.email.smtpPort }}
+        {{- end }}
+        {{- if .Values.alerting.email.username }}
+        username: {{ .Values.alerting.email.username | quote }}
+        {{- end }}
+        {{- if .Values.alerting.email.password }}
+        password: {{ .Values.alerting.email.password | quote }}
+        {{- end }}
+        {{- if .Values.alerting.email.from }}
+        from: {{ .Values.alerting.email.from | quote }}
+        {{- end }}
+        {{- if .Values.alerting.email.to }}
+        to: {{ toJson .Values.alerting.email.to }}
+        {{- end }}
+      {{- if .Values.alerting.webhooks }}
+      webhooks:
+      {{- range .Values.alerting.webhooks }}
+        - name: {{ .name | quote }}
+          url: {{ .url | quote }}
+          {{- if .headers }}
+          headers:
+          {{- range $key, $value := .headers }}
+            {{ $key }}: {{ $value | quote }}
+          {{- end }}
+          {{- end }}
+          {{- if .timeout }}
+          timeout: {{ .timeout | quote }}
+          {{- end }}
+      {{- end }}
+      {{- end }}
+    
+    performance:
+      enabled: {{ .Values.performance.enabled }}
+      cache:
+        enabled: {{ .Values.performance.cache.enabled }}
+        ttl: {{ .Values.performance.cache.ttl | quote }}
+        sizeMB: {{ .Values.performance.cache.sizeMB }}
+        type: {{ .Values.performance.cache.type | quote }}
+        {{- if eq .Values.performance.cache.type "redis" }}
+        redis:
+          {{- if .Values.performance.cache.redis.address }}
+          address: {{ .Values.performance.cache.redis.address | quote }}
+          {{- end }}
+          {{- if .Values.performance.cache.redis.password }}
+          password: {{ .Values.performance.cache.redis.password | quote }}
+          {{- end }}
+          db: {{ .Values.performance.cache.redis.db }}
+        {{- end }}
+      batchProcessing:
+        enabled: {{ .Values.performance.batchProcessing.enabled }}
+        size: {{ .Values.performance.batchProcessing.size }}
+        timeout: {{ .Values.performance.batchProcessing.timeout | quote }}
+        maxConcurrent: {{ .Values.performance.batchProcessing.maxConcurrent }}
+      resourceOptimization:
+        cpuOptimization: {{ .Values.performance.resourceOptimization.cpuOptimization }}
+        memoryOptimization: {{ .Values.performance.resourceOptimization.memoryOptimization }}
+        gcTuning:
+          targetPercent: {{ .Values.performance.resourceOptimization.gcTuning.targetPercent }}
+          memoryLimit: {{ .Values.performance.resourceOptimization.gcTuning.memoryLimit | quote }}
+      compression:
+        enabled: {{ .Values.performance.compression.enabled }}
+        algorithm: {{ .Values.performance.compression.algorithm | quote }}
+        level: {{ .Values.performance.compression.level }}
+    {{- end }} 

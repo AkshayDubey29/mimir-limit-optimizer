@@ -1,0 +1,21 @@
+apiVersion: v2
+name: mimir-limit-optimizer
+description: A Kubernetes-native controller for dynamically managing per-tenant limits in Grafana Mimir
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+home: https://github.com/tapasyadubey/mimir-limit-optimizer
+sources:
+  - https://github.com/tapasyadubey/mimir-limit-optimizer
+maintainers:
+  - name: Tapasya Dubey
+    email: tapasyadubey@example.com
+keywords:
+  - mimir
+  - prometheus
+  - observability
+  - limits
+  - optimization
+  - controller
+annotations:
+  category: Monitoring 

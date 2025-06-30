@@ -1,0 +1,538 @@
+package auditlog
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"sync"
+	"time"
+
+	"github.com/go-logr/logr"
+	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/tapasyadubey/mimir-limit-optimizer/internal/config"
+)
+
+// AuditEntry represents a single audit log entry
+type AuditEntry struct {
+	ID          string                 `json:"id"`
+	Timestamp   time.Time              `json:"timestamp"`
+	Tenant      string                 `json:"tenant,omitempty"`
+	Action      string                 `json:"action"`
+	Reason      string                 `json:"reason"`
+	Changes     map[string]interface{} `json:"changes"`
+	OldValues   map[string]interface{} `json:"old_values,omitempty"`
+	NewValues   map[string]interface{} `json:"new_values,omitempty"`
+	Source      string                 `json:"source"`
+	Success     bool                   `json:"success"`
+	Error       string                 `json:"error,omitempty"`
+	Component   string                 `json:"component"`
+	User        string                 `json:"user,omitempty"`
+	RequestID   string                 `json:"request_id,omitempty"`
+}
+
+// AuditLogger interface defines methods for audit logging
+type AuditLogger interface {
+	LogEntry(entry *AuditEntry) error
+	GetEntries(ctx context.Context, filter *AuditFilter) ([]*AuditEntry, error)
+	GetEntry(ctx context.Context, id string) (*AuditEntry, error)
+	PurgeOldEntries(ctx context.Context, olderThan time.Time) error
+	Close() error
+}
+
+// AuditFilter defines filtering criteria for audit entries
+type AuditFilter struct {
+	Tenant    string
+	Action    string
+	StartTime *time.Time
+	EndTime   *time.Time
+	Success   *bool
+	Limit     int
+	Offset    int
+}
+
+// MemoryAuditLogger implements audit logging in memory
+type MemoryAuditLogger struct {
+	entries    []*AuditEntry
+	maxEntries int
+	mu         sync.RWMutex
+	log        logr.Logger
+}
+
+// NewMemoryAuditLogger creates a new in-memory audit logger
+func NewMemoryAuditLogger(maxEntries int, log logr.Logger) *MemoryAuditLogger {
+	return &MemoryAuditLogger{
+		entries:    make([]*AuditEntry, 0, maxEntries),
+		maxEntries: maxEntries,
+		log:        log,
+	}
+}
+
+// LogEntry logs an audit entry
+func (m *MemoryAuditLogger) LogEntry(entry *AuditEntry) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	// Generate ID if not provided
+	if entry.ID == "" {
+		entry.ID = fmt.Sprintf("audit_%d", time.Now().UnixNano())
+	}
+
+	// Set defaults
+	if entry.Timestamp.IsZero() {
+		entry.Timestamp = time.Now()
+	}
+	if entry.Component == "" {
+		entry.Component = "mimir-limit-optimizer"
+	}
+	if entry.Source == "" {
+		entry.Source = "controller"
+	}
+
+	// Add entry
+	m.entries = append(m.entries, entry)
+
+	// Trim if necessary
+	if len(m.entries) > m.maxEntries {
+		// Remove oldest entries
+		removeCount := len(m.entries) - m.maxEntries
+		m.entries = m.entries[removeCount:]
+	}
+
+	m.log.Info("audit entry logged",
+		"id", entry.ID,
+		"tenant", entry.Tenant,
+		"action", entry.Action,
+		"reason", entry.Reason,
+		"success", entry.Success)
+
+	return nil
+}
+
+// GetEntries retrieves audit entries with optional filtering
+func (m *MemoryAuditLogger) GetEntries(ctx context.Context, filter *AuditFilter) ([]*AuditEntry, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	var filtered []*AuditEntry
+
+	for _, entry := range m.entries {
+		if m.matchesFilter(entry, filter) {
+			filtered = append(filtered, entry)
+		}
+	}
+
+	// Apply limit and offset
+	if filter != nil {
+		if filter.Offset > 0 && filter.Offset < len(filtered) {
+			filtered = filtered[filter.Offset:]
+		}
+		if filter.Limit > 0 && filter.Limit < len(filtered) {
+			filtered = filtered[:filter.Limit]
+		}
+	}
+
+	return filtered, nil
+}
+
+// GetEntry retrieves a specific audit entry by ID
+func (m *MemoryAuditLogger) GetEntry(ctx context.Context, id string) (*AuditEntry, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	for _, entry := range m.entries {
+		if entry.ID == id {
+			return entry, nil
+		}
+	}
+
+	return nil, fmt.Errorf("audit entry not found: %s", id)
+}
+
+// PurgeOldEntries removes entries older than the specified time
+func (m *MemoryAuditLogger) PurgeOldEntries(ctx context.Context, olderThan time.Time) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	var filtered []*AuditEntry
+	purgedCount := 0
+
+	for _, entry := range m.entries {
+		if entry.Timestamp.After(olderThan) {
+			filtered = append(filtered, entry)
+		} else {
+			purgedCount++
+		}
+	}
+
+	m.entries = filtered
+	m.log.Info("purged old audit entries", "count", purgedCount, "older_than", olderThan)
+
+	return nil
+}
+
+// Close closes the audit logger
+func (m *MemoryAuditLogger) Close() error {
+	return nil
+}
+
+// matchesFilter checks if an entry matches the filter criteria
+func (m *MemoryAuditLogger) matchesFilter(entry *AuditEntry, filter *AuditFilter) bool {
+	if filter == nil {
+		return true
+	}
+
+	if filter.Tenant != "" && entry.Tenant != filter.Tenant {
+		return false
+	}
+
+	if filter.Action != "" && entry.Action != filter.Action {
+		return false
+	}
+
+	if filter.StartTime != nil && entry.Timestamp.Before(*filter.StartTime) {
+		return false
+	}
+
+	if filter.EndTime != nil && entry.Timestamp.After(*filter.EndTime) {
+		return false
+	}
+
+	if filter.Success != nil && entry.Success != *filter.Success {
+		return false
+	}
+
+	return true
+}
+
+// ConfigMapAuditLogger implements audit logging using ConfigMaps
+type ConfigMapAuditLogger struct {
+	client        client.Client
+	configMapName string
+	namespace     string
+	maxEntries    int
+	log           logr.Logger
+}
+
+// NewConfigMapAuditLogger creates a new ConfigMap-based audit logger
+func NewConfigMapAuditLogger(c client.Client, configMapName, namespace string, maxEntries int, log logr.Logger) *ConfigMapAuditLogger {
+	return &ConfigMapAuditLogger{
+		client:        c,
+		configMapName: configMapName,
+		namespace:     namespace,
+		maxEntries:    maxEntries,
+		log:           log,
+	}
+}
+
+// LogEntry logs an audit entry to a ConfigMap
+func (c *ConfigMapAuditLogger) LogEntry(entry *AuditEntry) error {
+	ctx := context.Background()
+
+	// Generate ID if not provided
+	if entry.ID == "" {
+		entry.ID = fmt.Sprintf("audit_%d", time.Now().UnixNano())
+	}
+
+	// Set defaults
+	if entry.Timestamp.IsZero() {
+		entry.Timestamp = time.Now()
+	}
+	if entry.Component == "" {
+		entry.Component = "mimir-limit-optimizer"
+	}
+
+	// Get or create ConfigMap
+	configMap, err := c.getOrCreateConfigMap(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get/create audit ConfigMap: %w", err)
+	}
+
+	// Parse existing entries
+	entries, err := c.parseEntries(configMap)
+	if err != nil {
+		return fmt.Errorf("failed to parse existing audit entries: %w", err)
+	}
+
+	// Add new entry
+	entries = append(entries, entry)
+
+	// Trim if necessary
+	if len(entries) > c.maxEntries {
+		removeCount := len(entries) - c.maxEntries
+		entries = entries[removeCount:]
+	}
+
+	// Update ConfigMap
+	if err := c.updateConfigMap(ctx, configMap, entries); err != nil {
+		return fmt.Errorf("failed to update audit ConfigMap: %w", err)
+	}
+
+	c.log.Info("audit entry logged to ConfigMap",
+		"id", entry.ID,
+		"tenant", entry.Tenant,
+		"action", entry.Action)
+
+	return nil
+}
+
+// GetEntries retrieves audit entries from ConfigMap
+func (c *ConfigMapAuditLogger) GetEntries(ctx context.Context, filter *AuditFilter) ([]*AuditEntry, error) {
+	configMap, err := c.getConfigMap(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get audit ConfigMap: %w", err)
+	}
+
+	entries, err := c.parseEntries(configMap)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse audit entries: %w", err)
+	}
+
+	// Apply filtering
+	var filtered []*AuditEntry
+	for _, entry := range entries {
+		if c.matchesFilter(entry, filter) {
+			filtered = append(filtered, entry)
+		}
+	}
+
+	// Apply limit and offset
+	if filter != nil {
+		if filter.Offset > 0 && filter.Offset < len(filtered) {
+			filtered = filtered[filter.Offset:]
+		}
+		if filter.Limit > 0 && filter.Limit < len(filtered) {
+			filtered = filtered[:filter.Limit]
+		}
+	}
+
+	return filtered, nil
+}
+
+// GetEntry retrieves a specific audit entry by ID
+func (c *ConfigMapAuditLogger) GetEntry(ctx context.Context, id string) (*AuditEntry, error) {
+	entries, err := c.GetEntries(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, entry := range entries {
+		if entry.ID == id {
+			return entry, nil
+		}
+	}
+
+	return nil, fmt.Errorf("audit entry not found: %s", id)
+}
+
+// PurgeOldEntries removes old entries from ConfigMap
+func (c *ConfigMapAuditLogger) PurgeOldEntries(ctx context.Context, olderThan time.Time) error {
+	configMap, err := c.getConfigMap(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get audit ConfigMap: %w", err)
+	}
+
+	entries, err := c.parseEntries(configMap)
+	if err != nil {
+		return fmt.Errorf("failed to parse audit entries: %w", err)
+	}
+
+	var filtered []*AuditEntry
+	purgedCount := 0
+
+	for _, entry := range entries {
+		if entry.Timestamp.After(olderThan) {
+			filtered = append(filtered, entry)
+		} else {
+			purgedCount++
+		}
+	}
+
+	if err := c.updateConfigMap(ctx, configMap, filtered); err != nil {
+		return fmt.Errorf("failed to update audit ConfigMap: %w", err)
+	}
+
+	c.log.Info("purged old audit entries from ConfigMap", "count", purgedCount, "older_than", olderThan)
+
+	return nil
+}
+
+// Close closes the audit logger
+func (c *ConfigMapAuditLogger) Close() error {
+	return nil
+}
+
+// Helper methods for ConfigMapAuditLogger
+
+func (c *ConfigMapAuditLogger) getOrCreateConfigMap(ctx context.Context) (*corev1.ConfigMap, error) {
+	configMap, err := c.getConfigMap(ctx)
+	if apierrors.IsNotFound(err) {
+		return c.createConfigMap(ctx)
+	}
+	return configMap, err
+}
+
+func (c *ConfigMapAuditLogger) getConfigMap(ctx context.Context) (*corev1.ConfigMap, error) {
+	configMap := &corev1.ConfigMap{}
+	err := c.client.Get(ctx, types.NamespacedName{
+		Name:      c.configMapName,
+		Namespace: c.namespace,
+	}, configMap)
+	return configMap, err
+}
+
+func (c *ConfigMapAuditLogger) createConfigMap(ctx context.Context) (*corev1.ConfigMap, error) {
+	configMap := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      c.configMapName,
+			Namespace: c.namespace,
+			Labels: map[string]string{
+				"app.kubernetes.io/name":       "mimir-limit-optimizer",
+				"app.kubernetes.io/component":  "audit-log",
+				"app.kubernetes.io/managed-by": "mimir-limit-optimizer",
+			},
+		},
+		Data: map[string]string{
+			"audit.json": "[]",
+		},
+	}
+
+	if err := c.client.Create(ctx, configMap); err != nil {
+		return nil, fmt.Errorf("failed to create audit ConfigMap: %w", err)
+	}
+
+	return configMap, nil
+}
+
+func (c *ConfigMapAuditLogger) parseEntries(configMap *corev1.ConfigMap) ([]*AuditEntry, error) {
+	auditJSON, exists := configMap.Data["audit.json"]
+	if !exists {
+		return []*AuditEntry{}, nil
+	}
+
+	var entries []*AuditEntry
+	if err := json.Unmarshal([]byte(auditJSON), &entries); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal audit entries: %w", err)
+	}
+
+	return entries, nil
+}
+
+func (c *ConfigMapAuditLogger) updateConfigMap(ctx context.Context, configMap *corev1.ConfigMap, entries []*AuditEntry) error {
+	auditJSON, err := json.Marshal(entries)
+	if err != nil {
+		return fmt.Errorf("failed to marshal audit entries: %w", err)
+	}
+
+	if configMap.Data == nil {
+		configMap.Data = make(map[string]string)
+	}
+	configMap.Data["audit.json"] = string(auditJSON)
+
+	return c.client.Update(ctx, configMap)
+}
+
+func (c *ConfigMapAuditLogger) matchesFilter(entry *AuditEntry, filter *AuditFilter) bool {
+	if filter == nil {
+		return true
+	}
+
+	if filter.Tenant != "" && entry.Tenant != filter.Tenant {
+		return false
+	}
+
+	if filter.Action != "" && entry.Action != filter.Action {
+		return false
+	}
+
+	if filter.StartTime != nil && entry.Timestamp.Before(*filter.StartTime) {
+		return false
+	}
+
+	if filter.EndTime != nil && entry.Timestamp.After(*filter.EndTime) {
+		return false
+	}
+
+	if filter.Success != nil && entry.Success != *filter.Success {
+		return false
+	}
+
+	return true
+}
+
+// NewAuditLogger creates the appropriate audit logger based on configuration
+func NewAuditLogger(cfg *config.Config, client client.Client, log logr.Logger) AuditLogger {
+	if !cfg.AuditLog.Enabled {
+		return &NoOpAuditLogger{}
+	}
+
+	switch cfg.AuditLog.StorageType {
+	case "configmap":
+		return NewConfigMapAuditLogger(
+			client,
+			cfg.AuditLog.ConfigMapName,
+			cfg.Mimir.Namespace,
+			cfg.AuditLog.MaxEntries,
+			log,
+		)
+	case "memory":
+		return NewMemoryAuditLogger(cfg.AuditLog.MaxEntries, log)
+	default:
+		log.Info("unknown audit log storage type, using memory", "type", cfg.AuditLog.StorageType)
+		return NewMemoryAuditLogger(cfg.AuditLog.MaxEntries, log)
+	}
+}
+
+// NoOpAuditLogger is a no-op implementation of AuditLogger
+type NoOpAuditLogger struct{}
+
+func (n *NoOpAuditLogger) LogEntry(entry *AuditEntry) error                              { return nil }
+func (n *NoOpAuditLogger) GetEntries(ctx context.Context, filter *AuditFilter) ([]*AuditEntry, error) { return []*AuditEntry{}, nil }
+func (n *NoOpAuditLogger) GetEntry(ctx context.Context, id string) (*AuditEntry, error) { return nil, fmt.Errorf("not found") }
+func (n *NoOpAuditLogger) PurgeOldEntries(ctx context.Context, olderThan time.Time) error { return nil }
+func (n *NoOpAuditLogger) Close() error                                                 { return nil }
+
+// Helper functions for creating common audit entries
+
+// NewLimitUpdateEntry creates an audit entry for limit updates
+func NewLimitUpdateEntry(tenant, reason string, oldLimits, newLimits map[string]interface{}) *AuditEntry {
+	return &AuditEntry{
+		Tenant:    tenant,
+		Action:    "update-limits",
+		Reason:    reason,
+		Changes:   newLimits,
+		OldValues: oldLimits,
+		NewValues: newLimits,
+		Success:   true,
+	}
+}
+
+// NewErrorEntry creates an audit entry for errors
+func NewErrorEntry(tenant, action, reason string, err error) *AuditEntry {
+	return &AuditEntry{
+		Tenant:  tenant,
+		Action:  action,
+		Reason:  reason,
+		Success: false,
+		Error:   err.Error(),
+	}
+}
+
+// NewSpikeDetectionEntry creates an audit entry for spike detection
+func NewSpikeDetectionEntry(tenant, metricName string, oldValue, newValue float64) *AuditEntry {
+	return &AuditEntry{
+		Tenant: tenant,
+		Action: "spike-detected",
+		Reason: "automatic-spike-scaling",
+		Changes: map[string]interface{}{
+			"metric":    metricName,
+			"old_value": oldValue,
+			"new_value": newValue,
+		},
+		Success: true,
+	}
+} 

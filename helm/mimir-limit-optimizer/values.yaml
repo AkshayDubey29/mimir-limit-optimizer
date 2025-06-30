@@ -1,0 +1,533 @@
+# Default values for mimir-limit-optimizer
+
+# Controller configuration
+controller:
+  # Operating mode: "dry-run" or "prod"
+  mode: "dry-run"
+  
+  # Buffer percentage to add to calculated limits (e.g., 20 for 20%)
+  bufferPercentage: 20
+  
+  # How often to update limits
+  updateInterval: "5m"
+
+# Container image configuration
+image:
+  repository: mimir-limit-optimizer
+  tag: "latest"
+  pullPolicy: IfNotPresent
+
+# Image pull secrets
+imagePullSecrets: []
+
+# Service account configuration
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+# Pod security context
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 65534
+  fsGroup: 65534
+
+# Container security context
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+    - ALL
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  runAsUser: 65534
+
+# Resource configuration
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi
+
+# Node selector
+nodeSelector: {}
+
+# Tolerations
+tolerations: []
+
+# Affinity
+affinity: {}
+
+# Replica count
+replicaCount: 1
+
+# Mimir configuration
+mimir:
+  # Namespace where Mimir is deployed
+  namespace: "mimir"
+  
+  # Name of the runtime overrides ConfigMap
+  configMapName: "mimir-runtime-overrides"
+  
+  # Whether to trigger rollout after ConfigMap changes
+  triggerRollout: false
+  
+  # Components to rollout (if triggerRollout is true)
+  rolloutComponents:
+    - "mimir-ingester"
+    - "mimir-querier"
+    - "mimir-query-frontend"
+
+# Tenant scoping configuration
+tenantScoping:
+  # List of tenant patterns to skip (glob or regex)
+  skipList:
+    - "internal-*"
+    - "staging-*"
+  
+  # List of tenant patterns to include (empty means all, glob or regex)
+  includeList: []
+  
+  # Whether to use regex instead of glob patterns
+  useRegex: false
+
+# Metrics discovery configuration
+metricsDiscovery:
+  # Enable auto-discovery of metrics endpoints
+  enabled: true
+  
+  # Namespace to discover services in
+  namespace: "mimir"
+  
+  # Label selector for discovering services
+  serviceLabelSelector: "app.kubernetes.io/name=mimir"
+  
+  # List of known service names to discover
+  serviceNames:
+    - "mimir-distributor"
+    - "mimir-ingester"
+    - "mimir-querier"
+    - "mimir-query-frontend"
+  
+  # Metrics path on services
+  metricsPath: "/metrics"
+  
+  # Port name for metrics
+  portName: "http-metrics"
+  
+  # Port number (if portName is not used)
+  port: 8080
+
+# Optional fallback metrics endpoint (e.g., Prometheus URL)
+metricsEndpoint: ""
+
+# Event-driven spike detection
+eventSpike:
+  # Enable event-driven spike detection
+  enabled: true
+  
+  # Threshold multiplier for spike detection (e.g., 2.0 for 2x)
+  threshold: 2.0
+  
+  # Time window for spike detection
+  detectionWindow: "5m"
+  
+  # How long to keep increased limits after spike
+  cooldownPeriod: "30m"
+  
+  # Maximum spike multiplier to apply
+  maxSpikeMultiplier: 5.0
+
+# Trend analysis configuration
+trendAnalysis:
+  # Time window for trend analysis
+  analysisWindow: "48h"
+  
+  # Percentile to use for trend analysis (e.g., 95 for 95th percentile)
+  percentile: 95.0
+  
+  # Use moving average in trend calculation
+  useMovingAverage: true
+  
+  # Include peak usage in calculations
+  includePeaks: true
+  
+  # Time-of-day specific buffers
+  timeOfDayBuffers: {}
+    # "9-17": 1.5   # 50% higher buffer during business hours
+    # "0-8": 0.8    # 20% lower buffer during off-hours
+
+# Limits configuration
+limits:
+  # Minimum limits per tenant
+  minLimits:
+    ingestion_rate: 1000
+    max_series: 10000
+    max_samples_per_query: 1000000
+  
+  # Maximum limits per tenant
+  maxLimits:
+    ingestion_rate: 1000000
+    max_series: 10000000
+    max_samples_per_query: 100000000
+  
+  # Default limits for new tenants
+  defaultLimits:
+    ingestion_rate: 10000
+    max_series: 100000
+    max_samples_per_query: 10000000
+  
+  # TTL for removing limits of inactive tenants
+  inactiveTenantTTL: "168h"  # 7 days
+  
+  # Tenant tiers configuration
+  tenantTiers:
+    enterprise:
+      bufferPercentage: 30
+      limits:
+        ingestion_rate: 500000
+        max_series: 5000000
+    standard:
+      bufferPercentage: 20
+      limits:
+        ingestion_rate: 100000
+        max_series: 1000000
+    basic:
+      bufferPercentage: 10
+      limits:
+        ingestion_rate: 10000
+        max_series: 100000
+
+# Audit logging configuration
+auditLog:
+  # Enable audit logging
+  enabled: true
+  
+  # Storage type: "memory", "configmap", or "external"
+  storageType: "memory"
+  
+  # Maximum entries to keep in memory
+  maxEntries: 1000
+  
+  # ConfigMap name for audit storage (if storageType is "configmap")
+  configMapName: "mimir-limit-optimizer-audit"
+
+# Synthetic mode for testing
+synthetic:
+  # Enable synthetic mode for testing
+  enabled: false
+  
+  # Number of synthetic tenants to simulate
+  tenantCount: 10
+
+# Cost Control and Budget Management (Enterprise Feature)
+costControl:
+  enabled: true
+  costMethod: "composite"  # "samples", "series", "queries", "composite"
+  costPerUnit: 0.001  # Cost per million samples
+  
+  # Global budget configuration
+  globalBudget:
+    daily: 1000
+    monthly: 30000
+    annual: 365000
+    currency: "USD"
+    enforceBudget: false  # Optional: Enable to enforce budget limits
+  
+  # Budget alert thresholds (percentage of budget usage)
+  alertThresholds: [50, 75, 90, 95]
+  
+  # OPTIONAL: Automatic limit reduction when budgets are exceeded
+  # Set to false for monitoring-only mode (alerts without enforcement)
+  # Set to true to automatically reduce tenant limits when over budget
+  autoLimitReduction: false
+  
+  estimationWindow: "24h"
+  
+  # Optional: Per-tenant budget overrides
+  tenantBudgets: {}
+    # Example tenant-specific budgets with enforcement:
+    # enterprise-tenant:
+    #   daily: 500
+    #   monthly: 15000
+    #   annual: 180000
+    #   currency: "USD"
+    #   enforceBudget: true  # This tenant will have limits enforced
+    # 
+    # monitoring-only-tenant:
+    #   daily: 200
+    #   monthly: 6000
+    #   annual: 72000
+    #   currency: "USD"
+    #   enforceBudget: false  # This tenant gets alerts only
+
+# Circuit Breaker and Blast Protection (Enterprise Feature)
+# NOTE: Disabled by default in dry-run mode to allow uninterrupted traffic observation
+circuitBreaker:
+  enabled: false          # Disabled by default in dry-run mode (auto-enabled in prod mode)
+  runtimeEnabled: false   # Disabled by default in dry-run mode (auto-enabled in prod mode)
+  mode: "auto"           # "manual", "auto", "hybrid"
+  
+  # Manual configuration (used when mode is "manual")
+  failureThreshold: 50.0  # Percentage
+  requestVolumeThreshold: 20
+  sleepWindow: "30s"
+  maxRequestsInHalfOpen: 5
+  
+  # Automatic configuration based on tenant limits and real-time metrics
+  autoConfig:
+    enabled: true
+    baselineWindow: "24h"          # Time window for baseline calculation
+    minObservationPeriod: "1h"     # Minimum time before auto-tuning starts
+    
+    # Threshold multipliers based on current tenant limits
+    limitMultipliers:
+      ingestionRateMultiplier: 1.5  # Trip at 150% of current limit
+      queryRateMultiplier: 2.0      # Trip at 200% of current limit  
+      seriesMultiplier: 1.8         # Trip at 180% of current limit
+      burstMultiplier: 1.2          # Trip at 120% of burst limit
+    
+    # Real-time threshold adaptation
+    realtimeAdaptation:
+      enabled: true
+      interval: "5m"                # How often to adapt thresholds
+      learningRate: 0.1             # Learning rate for adaptation (0.0-1.0)
+      maxChangePercent: 20.0        # Maximum threshold change per cycle
+      percentile: 95.0              # Percentile to use for calculations
+      seasonalPatterns: false       # Enable seasonal pattern detection
+    
+    # Safety margins for auto-calculated thresholds
+    safetyMargins:
+      minMargin: 10.0              # Minimum safety margin (%)
+      maxMargin: 50.0              # Maximum safety margin (%)
+      defaultMargin: 25.0          # Default safety margin (%)
+      tenantMargins: {}            # Per-tenant safety margins
+        # Example tenant-specific margins:
+        # critical-tenant: 40.0    # Higher margin for critical services
+        # test-tenant: 15.0        # Lower margin for test environments
+  
+  # Rate limiting per tenant
+  rateLimit:
+    enabled: true
+    requestsPerSecond: 100
+    burstCapacity: 200
+    window: "1m"
+  
+  # Blast protection thresholds
+  blastProtection:
+    # Use automatic threshold calculation (recommended)
+    useAutoThresholds: true
+    
+    # Manual thresholds (fallback when auto-config is disabled)
+    manualThresholds:
+      ingestionSpikeThreshold: 1000000  # 1M samples/sec
+      querySpikeThreshold: 10000        # 10K queries/sec
+      seriesSpikeThreshold: 100000      # 100K series/sec
+    
+    # Per-tenant threshold overrides
+    tenantOverrides: {}
+      # Example overrides:
+      # high-volume-tenant:
+      #   ingestionSpikeThreshold: 5000000  # 5M samples/sec
+      #   querySpikeThreshold: 50000        # 50K queries/sec
+      #   seriesSpikeThreshold: 500000      # 500K series/sec
+    
+    autoEmergencyShutdown: true
+    recoveryTime: "5m"
+
+# Emergency Controls (Enterprise Feature)
+emergency:
+  enabled: true
+  webhookURL: ""  # Emergency webhook URL
+  contacts: []    # Emergency contact emails
+  
+  # Panic mode configuration
+  panicMode:
+    enabled: true
+    cpuThreshold: 90.0     # CPU percentage
+    memoryThreshold: 90.0  # Memory percentage
+    errorRateThreshold: 100 # Errors per second
+    actions: ["reduce_limits", "throttle_ingestion", "alert"]
+  
+  # Recovery procedures
+  recoveryProcedures:
+    autoRecovery: true
+    checkInterval: "30s"
+    healthCheckTimeout: "10s"
+    maxAttempts: 3
+
+# Advanced Alerting (Enterprise Feature)
+alerting:
+  enabled: true
+  
+  # Slack integration
+  slack:
+    enabled: false
+    webhookURL: ""
+    channel: "#mimir-alerts"
+  
+  # PagerDuty integration
+  pagerDuty:
+    enabled: false
+    integrationKey: ""
+    severity: "critical"
+  
+  # Email configuration
+  email:
+    enabled: false
+    smtpHost: ""
+    smtpPort: 587
+    username: ""
+    password: ""
+    from: ""
+    to: []
+  
+  # Custom webhooks
+  webhooks: []
+  #  - name: "custom-webhook"
+  #    url: "https://example.com/webhook"
+  #    headers:
+  #      Authorization: "Bearer token"
+  #    timeout: "10s"
+
+# Performance Optimization (Enterprise Feature)
+performance:
+  enabled: true
+  
+  # Caching configuration
+  cache:
+    enabled: true
+    ttl: "5m"
+    sizeMB: 256
+    type: "memory"  # "memory", "redis", "memcached"
+    redis:
+      address: ""
+      password: ""
+      db: 0
+  
+  # Batch processing
+  batchProcessing:
+    enabled: true
+    size: 100
+    timeout: "30s"
+    maxConcurrent: 10
+  
+  # Resource optimization
+  resourceOptimization:
+    cpuOptimization: true
+    memoryOptimization: true
+    gcTuning:
+      targetPercent: 100
+      memoryLimit: "512Mi"
+  
+  # Compression
+  compression:
+    enabled: true
+    algorithm: "gzip"  # "gzip", "lz4", "snappy"
+    level: 6
+
+# Service configuration
+service:
+  type: ClusterIP
+  port: 8080
+  metricsPort: 8080
+
+# Metrics and monitoring
+metrics:
+  enabled: true
+  port: 8080
+  path: /metrics
+
+# ServiceMonitor for Prometheus Operator
+serviceMonitor:
+  enabled: false
+  interval: 30s
+  scrapeTimeout: 10s
+  labels: {}
+  annotations: {}
+
+# PrometheusRule for alerting
+prometheusRule:
+  enabled: false
+  labels: {}
+  annotations: {}
+  rules:
+    - alert: MimirLimitOptimizerDown
+      expr: up{job="mimir-limit-optimizer"} == 0
+      for: 5m
+      labels:
+        severity: critical
+      annotations:
+        summary: "Mimir Limit Optimizer is down"
+        description: "Mimir Limit Optimizer has been down for more than 5 minutes"
+    
+    - alert: MimirLimitOptimizerReconcileFailures
+      expr: increase(mimir_limit_optimizer_reconcile_total{result="error"}[5m]) > 3
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Mimir Limit Optimizer reconcile failures"
+        description: "Mimir Limit Optimizer has failed {{ $value }} reconciliations in the last 5 minutes"
+    
+    - alert: MimirLimitOptimizerConfigMapUpdateFailures
+      expr: increase(mimir_limit_optimizer_configmap_updates_total{result="error"}[10m]) > 1
+      for: 2m
+      labels:
+        severity: critical
+      annotations:
+        summary: "Mimir Limit Optimizer ConfigMap update failures"
+        description: "Mimir Limit Optimizer has failed to update ConfigMap {{ $value }} times in the last 10 minutes"
+
+# Health probes configuration
+healthProbes:
+  liveness:
+    enabled: true
+    initialDelaySeconds: 30
+    periodSeconds: 30
+    timeoutSeconds: 5
+    failureThreshold: 3
+  readiness:
+    enabled: true
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+# Logging configuration
+logging:
+  level: "info"  # debug, info, warn, error
+  format: "json"  # json, text
+
+# Leader election
+leaderElection:
+  enabled: true
+
+# Environment variables
+env: []
+  # - name: CUSTOM_VAR
+  #   value: "custom-value"
+
+# Extra volumes
+extraVolumes: []
+
+# Extra volume mounts
+extraVolumeMounts: []
+
+# Pod annotations
+podAnnotations: {}
+
+# Pod labels
+podLabels: {}
+
+# Additional container arguments
+extraArgs: []
+
+# Configuration file override (if you want to provide a custom config file)
+configOverride: ""
+
+# RBAC configuration
+rbac:
+  create: true 
