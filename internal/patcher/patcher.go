@@ -360,7 +360,22 @@ func (p *ConfigMapPatcher) applyLimitsToOverrides(overrides map[string]interface
 			continue
 		}
 
-		tenantLimitConfig := make(map[string]interface{})
+		// PRESERVE EXISTING TENANT CONFIGURATION
+		// Get existing tenant config or create new one
+		var existingTenantConfig map[string]interface{}
+		if existing, exists := tenantOverrides[tenant]; exists {
+			if existingMap, ok := existing.(map[string]interface{}); ok {
+				existingTenantConfig = existingMap
+			} else {
+				existingTenantConfig = make(map[string]interface{})
+			}
+		} else {
+			existingTenantConfig = make(map[string]interface{})
+		}
+
+		// MERGE NEW LIMITS WITH EXISTING LIMITS (don't replace!)
+		updatedLimits := make([]string, 0)
+		hasUpdates := false
 
 		// Apply all configured dynamic limits
 		for limitName, limitValue := range tenantLimits.Limits {
@@ -368,14 +383,35 @@ func (p *ConfigMapPatcher) applyLimitsToOverrides(overrides map[string]interface
 			if limitDef, exists := p.config.DynamicLimits.LimitDefinitions[limitName]; exists && limitDef.Enabled {
 				// Apply the limit value based on type
 				if limitValue != nil && !p.isZeroValue(limitValue) {
-					tenantLimitConfig[limitName] = limitValue
+					// Check if this is actually a change
+					if existingValue, hadExisting := existingTenantConfig[limitName]; !hadExisting || existingValue != limitValue {
+						existingTenantConfig[limitName] = limitValue
+						updatedLimits = append(updatedLimits, limitName)
+						hasUpdates = true
+					}
 				}
 			}
 		}
 
-		// Only update if there are actual limits to set
-		if len(tenantLimitConfig) > 0 {
-			tenantOverrides[tenant] = tenantLimitConfig
+		// ADD METADATA COMMENTS if there were updates
+		if hasUpdates {
+			// Add metadata about the optimization
+			timestamp := time.Now().Format("2006-01-02T15:04:05Z07:00")
+			existingTenantConfig["# mimir-limit-optimizer"] = map[string]interface{}{
+				"last_updated":    timestamp,
+				"updated_limits":  updatedLimits,
+				"reason":          tenantLimits.Reason,
+				"source":          tenantLimits.Source,
+			}
+
+			// Update the tenant configuration (preserving all existing limits)
+			tenantOverrides[tenant] = existingTenantConfig
+			
+			p.log.V(1).Info("updated tenant limits while preserving existing configuration",
+				"tenant", tenant,
+				"updated_limits", updatedLimits,
+				"existing_limits_preserved", len(existingTenantConfig)-1, // -1 for metadata
+				"timestamp", timestamp)
 		}
 	}
 
@@ -525,24 +561,49 @@ func (p *ConfigMapPatcher) logChanges(oldOverrides, newOverrides map[string]inte
 		return
 	}
 
+	// Extract old tenant overrides (new values are in the limits parameter)
+	oldTenantOverrides := make(map[string]interface{})
+	
+	if oldOverrides["overrides"] != nil {
+		if tenantOverrides, ok := oldOverrides["overrides"].(map[string]interface{}); ok {
+			oldTenantOverrides = tenantOverrides
+		}
+	}
+
 	for tenant, limit := range limits {
-		// Build dynamic changes map from all configured limits
-		changes := make(map[string]interface{})
+		// Extract old limits for this tenant (new limits are in the limit.Limits map)
+		oldTenantLimits := make(map[string]interface{})
 		
+		if oldTenantConfig, exists := oldTenantOverrides[tenant]; exists {
+			if oldLimits, ok := oldTenantConfig.(map[string]interface{}); ok {
+				oldTenantLimits = oldLimits
+			}
+		}
+		
+		// Build proper old vs new audit log entries
+		oldValues := make(map[string]interface{})
+		newValues := make(map[string]interface{})
+		
+		// Check each limit that was updated
 		for limitName, limitValue := range limit.Limits {
 			// Only log enabled limits
 			if limitDef, exists := p.config.DynamicLimits.LimitDefinitions[limitName]; exists && limitDef.Enabled {
-				changes[limitName] = limitValue
+				// Get old value
+				if oldValue, hadOld := oldTenantLimits[limitName]; hadOld {
+					oldValues[limitName] = oldValue
+				} else {
+					oldValues[limitName] = nil // New limit
+				}
+				
+				// Get new value
+				newValues[limitName] = limitValue
 			}
 		}
-
-		entry := &auditlog.AuditEntry{
-			Timestamp: time.Now(),
-			Tenant:    tenant,
-			Action:    "update-limits",
-			Reason:    limit.Reason,
-			Changes:   changes,
-		}
+		
+		// Create audit entry using the enhanced format
+		entry := auditlog.NewLimitUpdateEntry(tenant, limit.Reason, oldValues, newValues)
+		entry.Source = limit.Source
+		entry.Component = "mimir-limit-optimizer"
 		
 		if err := p.auditLog.LogEntry(entry); err != nil {
 			// Audit logging failures should not interrupt the main operation
