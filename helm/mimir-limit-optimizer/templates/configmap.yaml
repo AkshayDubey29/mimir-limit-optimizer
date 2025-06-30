@@ -13,7 +13,7 @@ data:
     {{- else }}
     mode: {{ .Values.controller.mode | quote }}
     bufferPercentage: {{ .Values.controller.bufferPercentage }}
-          updateInterval: {{.Values.controller.updateInterval}}
+    updateInterval: {{ .Values.controller.updateInterval }}
 
     mimir:
       namespace: {{ .Values.mimir.namespace | quote }}
@@ -47,6 +47,24 @@ data:
       metricsPath: {{ .Values.metricsDiscovery.metricsPath | quote }}
       portName: {{ .Values.metricsDiscovery.portName | quote }}
       port: {{ .Values.metricsDiscovery.port }}
+      tenantDiscovery:
+        metricsTenantID: {{ .Values.metricsDiscovery.tenantDiscovery.metricsTenantID | quote }}
+        {{- if .Values.metricsDiscovery.tenantDiscovery.tenantHeaders }}
+        tenantHeaders:
+        {{- range $key, $value := .Values.metricsDiscovery.tenantDiscovery.tenantHeaders }}
+          {{ $key }}: {{ $value | quote }}
+        {{- end }}
+        {{- end }}
+        fallbackTenants:
+        {{- range .Values.metricsDiscovery.tenantDiscovery.fallbackTenants }}
+          - {{ . | quote }}
+        {{- end }}
+        configMapNames:
+        {{- range .Values.metricsDiscovery.tenantDiscovery.configMapNames }}
+          - {{ . | quote }}
+        {{- end }}
+        enableSynthetic: {{ .Values.metricsDiscovery.tenantDiscovery.enableSynthetic }}
+        syntheticCount: {{ .Values.metricsDiscovery.tenantDiscovery.syntheticCount }}
 
     {{- if .Values.metricsEndpoint }}
     metricsEndpoint: {{ .Values.metricsEndpoint | quote }}
@@ -55,12 +73,12 @@ data:
     eventSpike:
       enabled: {{ .Values.eventSpike.enabled }}
       threshold: {{ .Values.eventSpike.threshold }}
-              detectionWindow: {{.Values.eventSpike.detectionWindow}}
-        cooldownPeriod: {{.Values.eventSpike.cooldownPeriod}}
+      detectionWindow: {{ .Values.eventSpike.detectionWindow }}
+      cooldownPeriod: {{ .Values.eventSpike.cooldownPeriod }}
       maxSpikeMultiplier: {{ .Values.eventSpike.maxSpikeMultiplier }}
 
     trendAnalysis:
-              analysisWindow: {{.Values.trendAnalysis.analysisWindow}}
+      analysisWindow: {{ .Values.trendAnalysis.analysisWindow }}
       percentile: {{ .Values.trendAnalysis.percentile }}
       useMovingAverage: {{ .Values.trendAnalysis.useMovingAverage }}
       includePeaks: {{ .Values.trendAnalysis.includePeaks }}
@@ -90,7 +108,7 @@ data:
         {{ $key }}: {{ $value }}
       {{- end }}
       {{- end }}
-      inactiveTenantTTL: {{.Values.limits.inactiveTenantTTL}}
+      inactiveTenantTTL: {{ .Values.limits.inactiveTenantTTL }}
       {{- if .Values.limits.tenantTiers }}
       tenantTiers:
       {{- range $tierName, $tierConfig := .Values.limits.tenantTiers }}
@@ -113,6 +131,11 @@ data:
       configMapName: {{ .Values.auditLog.configMapName | quote }}
       {{- end }}
 
+    dynamicLimits:
+      enabled: {{ .Values.dynamicLimits.enabled }}
+      defaultBuffer: {{ .Values.dynamicLimits.defaultBuffer }}
+      autoDetect: {{ .Values.dynamicLimits.autoDetect }}
+
     synthetic:
       enabled: {{ .Values.synthetic.enabled }}
       tenantCount: {{ .Values.synthetic.tenantCount }}
@@ -129,7 +152,7 @@ data:
         enforceBudget: {{ .Values.costControl.globalBudget.enforceBudget }}
       alertThresholds: {{ toJson .Values.costControl.alertThresholds }}
       autoLimitReduction: {{ .Values.costControl.autoLimitReduction }}
-      estimationWindow: {{.Values.costControl.estimationWindow}}
+      estimationWindow: {{ .Values.costControl.estimationWindow }}
       {{- if .Values.costControl.tenantBudgets }}
       tenantBudgets:
       {{- range $tenant, $budget := .Values.costControl.tenantBudgets }}
@@ -146,20 +169,20 @@ data:
       enabled: {{ .Values.circuitBreaker.enabled }}
       failureThreshold: {{ .Values.circuitBreaker.failureThreshold }}
       requestVolumeThreshold: {{ .Values.circuitBreaker.requestVolumeThreshold }}
-      sleepWindow: {{.Values.circuitBreaker.sleepWindow}}
+      sleepWindow: {{ .Values.circuitBreaker.sleepWindow }}
       maxRequestsInHalfOpen: {{ .Values.circuitBreaker.maxRequestsInHalfOpen }}
       rateLimit:
         enabled: {{ .Values.circuitBreaker.rateLimit.enabled }}
         requestsPerSecond: {{ .Values.circuitBreaker.rateLimit.requestsPerSecond }}
         burstCapacity: {{ .Values.circuitBreaker.rateLimit.burstCapacity }}
-                  window: {{.Values.circuitBreaker.rateLimit.window}}
+        window: {{ .Values.circuitBreaker.rateLimit.window }}
       blastProtection:
-        useAutoThresholds: {{.Values.circuitBreaker.blastProtection.useAutoThresholds}}
+        useAutoThresholds: {{ .Values.circuitBreaker.blastProtection.useAutoThresholds }}
         {{- if .Values.circuitBreaker.blastProtection.manualThresholds }}
         manualThresholds:
-          ingestionSpikeThreshold: {{.Values.circuitBreaker.blastProtection.manualThresholds.ingestionSpikeThreshold}}
-          querySpikeThreshold: {{.Values.circuitBreaker.blastProtection.manualThresholds.querySpikeThreshold}}
-          seriesSpikeThreshold: {{.Values.circuitBreaker.blastProtection.manualThresholds.seriesSpikeThreshold}}
+          ingestionSpikeThreshold: {{ .Values.circuitBreaker.blastProtection.manualThresholds.ingestionSpikeThreshold }}
+          querySpikeThreshold: {{ .Values.circuitBreaker.blastProtection.manualThresholds.querySpikeThreshold }}
+          seriesSpikeThreshold: {{ .Values.circuitBreaker.blastProtection.manualThresholds.seriesSpikeThreshold }}
         {{- end}}
         {{- if .Values.circuitBreaker.blastProtection.tenantOverrides }}
         tenantOverrides:
@@ -176,8 +199,8 @@ data:
             {{- end }}
         {{- end }}
         {{- end }}
-        autoEmergencyShutdown: {{.Values.circuitBreaker.blastProtection.autoEmergencyShutdown}}
-        recoveryTime: {{.Values.circuitBreaker.blastProtection.recoveryTime}}
+        autoEmergencyShutdown: {{ .Values.circuitBreaker.blastProtection.autoEmergencyShutdown }}
+        recoveryTime: {{ .Values.circuitBreaker.blastProtection.recoveryTime }}
 
     emergency:
       enabled: {{ .Values.emergency.enabled }}
@@ -195,8 +218,8 @@ data:
         actions: {{ toJson .Values.emergency.panicMode.actions }}
       recoveryProcedures:
         autoRecovery: {{ .Values.emergency.recoveryProcedures.autoRecovery }}
-                  checkInterval: {{.Values.emergency.recoveryProcedures.checkInterval}}
-        healthCheckTimeout: {{.Values.emergency.recoveryProcedures.healthCheckTimeout}}
+        checkInterval: {{ .Values.emergency.recoveryProcedures.checkInterval }}
+        healthCheckTimeout: {{ .Values.emergency.recoveryProcedures.healthCheckTimeout }}
         maxAttempts: {{ .Values.emergency.recoveryProcedures.maxAttempts }}
 
     alerting:
@@ -256,7 +279,7 @@ data:
       enabled: {{ .Values.performance.enabled }}
       cache:
         enabled: {{ .Values.performance.cache.enabled }}
-        ttl: {{.Values.performance.cache.ttl}}
+        ttl: {{ .Values.performance.cache.ttl }}
         sizeMB: {{ .Values.performance.cache.sizeMB }}
         type: {{ .Values.performance.cache.type | quote }}
         {{- if eq .Values.performance.cache.type "redis" }}
@@ -272,7 +295,7 @@ data:
       batchProcessing:
         enabled: {{ .Values.performance.batchProcessing.enabled }}
         size: {{ .Values.performance.batchProcessing.size }}
-                  timeout: {{.Values.performance.batchProcessing.timeout}}
+        timeout: {{ .Values.performance.batchProcessing.timeout }}
         maxConcurrent: {{ .Values.performance.batchProcessing.maxConcurrent }}
       resourceOptimization:
         cpuOptimization: {{ .Values.performance.resourceOptimization.cpuOptimization }}
