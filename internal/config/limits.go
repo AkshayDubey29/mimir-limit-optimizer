@@ -783,6 +783,433 @@ func GetDefaultLimitDefinitions() map[string]LimitDefinition {
 		},
 		
 		// ===========================================
+		// BYTE-BASED INGESTION LIMITS
+		// ===========================================
+		
+		"max_ingestion_rate_bytes": {
+			Name:         "max_ingestion_rate_bytes",
+			Type:         "size",
+			MetricSource: "cortex_distributor_received_samples_bytes_total",
+			DefaultValue: int64(25000000), // 25MB/sec
+			MinValue:     int64(1000000),  // 1MB/sec
+			MaxValue:     int64(10000000000), // 10GB/sec
+			BufferFactor: 20.0,
+			Enabled:      true,
+			Description:  "Rate limit for ingestion in bytes per second per tenant",
+		},
+		"max_ingestion_burst_size_bytes": {
+			Name:         "max_ingestion_burst_size_bytes", 
+			Type:         "size",
+			MetricSource: "cortex_distributor_received_samples_bytes_total",
+			DefaultValue: int64(50000000), // 50MB burst
+			MinValue:     int64(2000000),  // 2MB
+			MaxValue:     int64(20000000000), // 20GB
+			BufferFactor: 20.0,
+			Enabled:      true,
+			Description:  "Burst size for ingestion in bytes per tenant",
+		},
+		
+		// ===========================================
+		// SAMPLE/DATA VALIDATION LIMITS
+		// ===========================================
+		
+		"max_sample_age": {
+			Name:         "max_sample_age",
+			Type:         "duration",
+			MetricSource: "cortex_distributor_latest_seen_sample_timestamp_seconds",
+			DefaultValue: "336h", // 14 days
+			MinValue:     "1h",
+			MaxValue:     "8760h", // 1 year
+			BufferFactor: 0.0,
+			Enabled:      true,
+			Description:  "Maximum age of samples that can be ingested",
+		},
+		"enforce_metric_name_validation": {
+			Name:         "enforce_metric_name_validation",
+			Type:         "bool",
+			MetricSource: "",
+			DefaultValue: true,
+			MinValue:     false,
+			MaxValue:     true,
+			BufferFactor: 0.0,
+			Enabled:      false,
+			Description:  "Whether to enforce metric name validation",
+		},
+		
+		// ===========================================
+		// CHUNK STORAGE LIMITS
+		// ===========================================
+		
+		"max_chunk_age": {
+			Name:         "max_chunk_age",
+			Type:         "duration",
+			MetricSource: "cortex_ingester_oldest_unshipped_block_timestamp_seconds",
+			DefaultValue: "12h",
+			MinValue:     "1h", 
+			MaxValue:     "72h",
+			BufferFactor: 0.0,
+			Enabled:      true,
+			Description:  "Maximum age of chunks before they must be shipped",
+		},
+		"max_chunk_size_bytes": {
+			Name:         "max_chunk_size_bytes",
+			Type:         "size",
+			MetricSource: "cortex_ingester_chunk_size_bytes",
+			DefaultValue: int64(1048576), // 1MB
+			MinValue:     int64(1024),    // 1KB
+			MaxValue:     int64(104857600), // 100MB
+			BufferFactor: 20.0,
+			Enabled:      true,
+			Description:  "Maximum size of individual chunks in bytes",
+		},
+		
+		// ===========================================
+		// TENANT MANAGEMENT LIMITS
+		// ===========================================
+		
+		"max_tenants": {
+			Name:         "max_tenants",
+			Type:         "count",
+			MetricSource: "cortex_ingester_memory_users",
+			DefaultValue: int64(1000),
+			MinValue:     int64(1),
+			MaxValue:     int64(100000),
+			BufferFactor: 10.0,
+			Enabled:      true,
+			Description:  "Maximum number of tenants per ingester",
+		},
+		"enforce_tenant_id_header": {
+			Name:         "enforce_tenant_id_header",
+			Type:         "bool",
+			MetricSource: "",
+			DefaultValue: true,
+			MinValue:     false,
+			MaxValue:     true,
+			BufferFactor: 0.0,
+			Enabled:      false,
+			Description:  "Whether to enforce X-Scope-OrgID header presence",
+		},
+		"per_tenant_override": {
+			Name:         "per_tenant_override",
+			Type:         "bool",
+			MetricSource: "",
+			DefaultValue: true,
+			MinValue:     false,
+			MaxValue:     true,
+			BufferFactor: 0.0,
+			Enabled:      false,
+			Description:  "Whether per-tenant overrides are enabled",
+		},
+		"subtenant_limits": {
+			Name:         "subtenant_limits",
+			Type:         "bool",
+			MetricSource: "",
+			DefaultValue: false,
+			MinValue:     false,
+			MaxValue:     true,
+			BufferFactor: 0.0,
+			Enabled:      false,
+			Description:  "Whether hierarchical sub-tenant limits are enabled",
+		},
+		
+		// ===========================================
+		// REMOTE WRITE LIMITS
+		// ===========================================
+		
+		"remote_write_deadline": {
+			Name:         "remote_write_deadline",
+			Type:         "duration",
+			MetricSource: "cortex_distributor_push_duration_seconds",
+			DefaultValue: "30s",
+			MinValue:     "1s",
+			MaxValue:     "300s",
+			BufferFactor: 0.0,
+			Enabled:      true,
+			Description:  "Deadline for remote write requests",
+		},
+		"remote_write_max_samples_per_send": {
+			Name:         "remote_write_max_samples_per_send",
+			Type:         "count",
+			MetricSource: "cortex_distributor_samples_in_total",
+			DefaultValue: int64(10000),
+			MinValue:     int64(100),
+			MaxValue:     int64(1000000),
+			BufferFactor: 20.0,
+			Enabled:      true,
+			Description:  "Maximum samples per remote write request",
+		},
+		
+		// ===========================================
+		// OBSERVABILITY LIMITS
+		// ===========================================
+		
+		"trace_sampling_rate": {
+			Name:         "trace_sampling_rate",
+			Type:         "percentage",
+			MetricSource: "",
+			DefaultValue: 1.0, // 1%
+			MinValue:     0.0,
+			MaxValue:     100.0,
+			BufferFactor: 0.0,
+			Enabled:      false,
+			Description:  "Sampling rate for distributed tracing (0-100%)",
+		},
+		"log_level": {
+			Name:         "log_level",
+			Type:         "string",
+			MetricSource: "",
+			DefaultValue: "info",
+			MinValue:     "",
+			MaxValue:     "",
+			BufferFactor: 0.0,
+			Enabled:      false,
+			Description:  "Log level for tenant operations (debug, info, warn, error)",
+		},
+		
+		// ===========================================
+		// QUERY TIMEOUT & SCHEDULING LIMITS
+		// ===========================================
+		
+		"query_timeout": {
+			Name:         "query_timeout",
+			Type:         "duration",
+			MetricSource: "cortex_query_frontend_query_duration_seconds",
+			DefaultValue: "300s", // 5 minutes
+			MinValue:     "1s",
+			MaxValue:     "3600s", // 1 hour
+			BufferFactor: 0.0,
+			Enabled:      true,
+			Description:  "Maximum query execution timeout",
+		},
+		"query_scheduler_max_outstanding_requests_per_tenant": {
+			Name:         "query_scheduler_max_outstanding_requests_per_tenant",
+			Type:         "count",
+			MetricSource: "cortex_query_scheduler_queue_length",
+			DefaultValue: int64(100),
+			MinValue:     int64(1),
+			MaxValue:     int64(10000),
+			BufferFactor: 20.0,
+			Enabled:      true,
+			Description:  "Maximum outstanding requests per tenant in query scheduler",
+		},
+		"query_scheduler_max_queriers_per_tenant": {
+			Name:         "query_scheduler_max_queriers_per_tenant",
+			Type:         "count",
+			MetricSource: "cortex_query_scheduler_queriers_connected",
+			DefaultValue: int64(10),
+			MinValue:     int64(1),
+			MaxValue:     int64(1000),
+			BufferFactor: 20.0,
+			Enabled:      true,
+			Description:  "Maximum queriers per tenant in query scheduler",
+		},
+		"query_scheduler_max_outstanding_requests": {
+			Name:         "query_scheduler_max_outstanding_requests",
+			Type:         "count",
+			MetricSource: "cortex_query_scheduler_queue_length",
+			DefaultValue: int64(1000),
+			MinValue:     int64(10),
+			MaxValue:     int64(100000),
+			BufferFactor: 20.0,
+			Enabled:      true,
+			Description:  "Global maximum outstanding requests in query scheduler",
+		},
+		"query_scheduler_max_active_requests": {
+			Name:         "query_scheduler_max_active_requests",
+			Type:         "count",
+			MetricSource: "cortex_query_scheduler_queries_in_progress",
+			DefaultValue: int64(100),
+			MinValue:     int64(1),
+			MaxValue:     int64(10000),
+			BufferFactor: 20.0,
+			Enabled:      true,
+			Description:  "Maximum active requests in query scheduler",
+		},
+		"enable_query_scheduling": {
+			Name:         "enable_query_scheduling",
+			Type:         "bool",
+			MetricSource: "",
+			DefaultValue: false,
+			MinValue:     false,
+			MaxValue:     true,
+			BufferFactor: 0.0,
+			Enabled:      false,
+			Description:  "Whether query scheduling is enabled for tenant",
+		},
+		
+		// ===========================================
+		// STORAGE GATEWAY LIMITS
+		// ===========================================
+		
+		"store_gateway_max_queries_in_flight": {
+			Name:         "store_gateway_max_queries_in_flight",
+			Type:         "count",
+			MetricSource: "cortex_bucket_store_queries_in_flight",
+			DefaultValue: int64(100),
+			MinValue:     int64(1),
+			MaxValue:     int64(10000),
+			BufferFactor: 20.0,
+			Enabled:      true,
+			Description:  "Maximum concurrent queries per store gateway",
+		},
+		"blocks_storage_tenant_shard_size": {
+			Name:         "blocks_storage_tenant_shard_size",
+			Type:         "count",
+			MetricSource: "",
+			DefaultValue: int64(0), // 0 = no sharding
+			MinValue:     int64(0),
+			MaxValue:     int64(1000),
+			BufferFactor: 0.0,
+			Enabled:      false,
+			Description:  "Tenant shard size for blocks storage (0 = no sharding)",
+		},
+		"blocks_storage_per_tenant_override": {
+			Name:         "blocks_storage_per_tenant_override",
+			Type:         "bool",
+			MetricSource: "",
+			DefaultValue: false,
+			MinValue:     false,
+			MaxValue:     true,
+			BufferFactor: 0.0,
+			Enabled:      false,
+			Description:  "Whether per-tenant blocks storage overrides are enabled",
+		},
+		
+		// ===========================================
+		// TSDB SPECIFIC LIMITS
+		// ===========================================
+		
+		"tsdb_retention_period": {
+			Name:         "tsdb_retention_period",
+			Type:         "duration",
+			MetricSource: "prometheus_tsdb_blocks_loaded",
+			DefaultValue: "336h", // 14 days
+			MinValue:     "24h",
+			MaxValue:     "8760h", // 1 year
+			BufferFactor: 0.0,
+			Enabled:      true,
+			Description:  "TSDB block retention period per tenant",
+		},
+		
+		// ===========================================
+		// API SPECIFIC LIMITS
+		// ===========================================
+		
+		"api_limit_max_series_per_metric_name": {
+			Name:         "api_limit_max_series_per_metric_name",
+			Type:         "count",
+			MetricSource: "cortex_ingester_memory_series_per_metric",
+			DefaultValue: int64(50000),
+			MinValue:     int64(100),
+			MaxValue:     int64(10000000),
+			BufferFactor: 20.0,
+			Enabled:      true,
+			Description:  "API limit for maximum series per metric name",
+		},
+		"api_limit_max_label_value_length": {
+			Name:         "api_limit_max_label_value_length",
+			Type:         "size",
+			MetricSource: "",
+			DefaultValue: int64(4096), // 4KB
+			MinValue:     int64(256),
+			MaxValue:     int64(65536), // 64KB
+			BufferFactor: 0.0,
+			Enabled:      true,
+			Description:  "API limit for maximum label value length in API responses",
+		},
+		
+		// ===========================================
+		// CONCURRENT REQUEST LIMITS
+		// ===========================================
+		
+		"max_concurrent_requests": {
+			Name:         "max_concurrent_requests",
+			Type:         "count",
+			MetricSource: "cortex_request_duration_seconds",
+			DefaultValue: int64(1000),
+			MinValue:     int64(1),
+			MaxValue:     int64(100000),
+			BufferFactor: 20.0,
+			Enabled:      true,
+			Description:  "Maximum concurrent requests per tenant across all components",
+		},
+		
+		// ===========================================
+		// BYTES-BASED QUERY LIMITS
+		// ===========================================
+		
+		"max_bytes_per_query": {
+			Name:         "max_bytes_per_query",
+			Type:         "size",
+			MetricSource: "cortex_querier_chunks_fetched_bytes",
+			DefaultValue: int64(1073741824), // 1GB
+			MinValue:     int64(1048576),    // 1MB
+			MaxValue:     int64(107374182400), // 100GB
+			BufferFactor: 50.0,
+			Enabled:      true,
+			Description:  "Maximum bytes a single query can process",
+		},
+		
+		// ===========================================
+		// RETENTION & TSDB LIMITS
+		// ===========================================
+		
+		"retention_period": {
+			Name:         "retention_period",
+			Type:         "duration",
+			MetricSource: "prometheus_tsdb_blocks_loaded",
+			DefaultValue: "336h", // 14 days
+			MinValue:     "24h",
+			MaxValue:     "8760h", // 1 year
+			BufferFactor: 0.0,
+			Enabled:      true,
+			Description:  "General retention period per tenant",
+		},
+		
+		// ===========================================
+		// CARDINALITY MANAGEMENT LIMITS  
+		// ===========================================
+		
+		"cardinality_limit": {
+			Name:         "cardinality_limit",
+			Type:         "count",
+			MetricSource: "cortex_ingester_memory_series",
+			DefaultValue: int64(100000),
+			MinValue:     int64(1000),
+			MaxValue:     int64(100000000),
+			BufferFactor: 20.0,
+			Enabled:      true,
+			Description:  "Overall cardinality limit per tenant",
+		},
+		"enforce_metadata_validation": {
+			Name:         "enforce_metadata_validation",
+			Type:         "bool",
+			MetricSource: "",
+			DefaultValue: true,
+			MinValue:     false,
+			MaxValue:     true,
+			BufferFactor: 0.0,
+			Enabled:      false,
+			Description:  "Whether to enforce metadata validation",
+		},
+		
+		// ===========================================
+		// DEPRECATED COMPATIBILITY LIMITS
+		// ===========================================
+		
+		"max_metadata_per_user": {
+			Name:         "max_metadata_per_user",
+			Type:         "count",
+			MetricSource: "cortex_ingester_memory_metadata",
+			DefaultValue: int64(8000),
+			MinValue:     int64(100),
+			MaxValue:     int64(1000000),
+			BufferFactor: 20.0,
+			Enabled:      false,
+			Description:  "DEPRECATED: Use max_global_metadata_per_user instead",
+		},
+		
+		// ===========================================
 		// DEPRECATED/COMPATIBILITY LIMITS
 		// ===========================================
 		

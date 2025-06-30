@@ -463,16 +463,60 @@ func (a *TrendAnalyzer) isAnalyzableMetric(metricName string) bool {
 		"cortex_querier_query_duration_seconds",
 		"cortex_ingester_ingested_samples_failures_total",
 		
+		// BYTE-BASED INGESTION METRICS - NEW COMPREHENSIVE COVERAGE
+		"cortex_distributor_received_samples_bytes_total",
+		"cortex_distributor_push_duration_seconds",
+		"cortex_distributor_latest_seen_sample_timestamp_seconds",
+		"cortex_ingester_oldest_unshipped_block_timestamp_seconds",
+		"cortex_ingester_chunk_size_bytes",
+		
+		// QUERY SCHEDULER METRICS - NEW COMPREHENSIVE COVERAGE
+		"cortex_query_scheduler_queue_length",
+		"cortex_query_scheduler_queriers_connected",
+		"cortex_query_scheduler_queries_in_progress",
+		"cortex_query_frontend_queue_length",
+		"cortex_query_frontend_queries_in_progress",
+		
+		// STORAGE GATEWAY METRICS - NEW COMPREHENSIVE COVERAGE
+		"cortex_bucket_store_queries_in_flight",
+		
+		// REQUEST & CONCURRENCY METRICS - NEW COMPREHENSIVE COVERAGE
+		"cortex_request_duration_seconds",
+		"cortex_querier_chunks_fetched_bytes",
+		
+		// CARDINALITY & SERIES METRICS - ENHANCED COVERAGE
+		"cortex_ingester_memory_series_per_metric",
+		"cortex_ingester_memory_metadata",
+		"cortex_ingester_memory_metadata_per_metric",
+		"cortex_querier_series_fetched",
+		"cortex_querier_chunks_fetched",
+		"cortex_querier_estimated_memory_consumption_bytes",
+		"cortex_querier_estimated_chunks_fetched",
+		"cortex_querier_exemplars_fetched",
+		
+		// RULER METRICS - ENHANCED COVERAGE
+		"cortex_ruler_rule_group_rules",
+		"cortex_ruler_rule_groups_per_user",
+		"cortex_ruler_rules_per_user",
+		
+		// ALERTMANAGER METRICS - COMPREHENSIVE COVERAGE
+		"cortex_alertmanager_notifications_total",
+		"cortex_alertmanager_dispatcher_aggregation_groups",
+		"cortex_alertmanager_alerts",
+		"cortex_alertmanager_alerts_size_bytes",
+		
+		// INGESTER TSDB METRICS - ENHANCED COVERAGE
+		"cortex_ingester_tsdb_exemplar_series_with_exemplars_in_storage",
+		"cortex_ingester_active_series",
+		
 		// EXTENDED MIMIR METRICS - Additional metrics for comprehensive analysis
 		"cortex_distributor_deduped_samples_total",
 		"cortex_distributor_non_ha_samples_received_total",
-		"cortex_distributor_latest_seen_sample_timestamp_seconds",
 		"cortex_ingester_chunks_created_total",
 		"cortex_ingester_series_removed_total",
 		"cortex_querier_series_fetched_total",
 		"cortex_querier_chunks_fetched_total",
 		"cortex_querier_estimated_series_count",
-		"cortex_query_scheduler_queue_duration_seconds",
 		"cortex_compactor_runs_total",
 		"cortex_ruler_queries_total",
 		
@@ -553,39 +597,82 @@ func (a *TrendAnalyzer) getMetricToLimitMapping() map[string]string {
 		"cortex_distributor_samples_in_total":           "ingestion_rate",
 		"cortex_ingester_ingested_samples_total":        "ingestion_rate",
 		"cortex_ingester_memory_series":                 "max_global_series_per_user",
-		"cortex_ingester_memory_users":                  "max_global_series_per_user",
+		"cortex_ingester_memory_users":                  "max_tenants",
 		"cortex_query_frontend_queries_total":           "max_samples_per_query",
 		"cortex_querier_queries_total":                  "max_samples_per_query",
-		"cortex_query_frontend_query_duration_seconds":  "max_query_length",
-		"cortex_querier_query_duration_seconds":         "max_query_length",
-		"cortex_ingester_ingested_samples_failures_total": "ingestion_rate", // Include failures in rate calculations
+		"cortex_query_frontend_query_duration_seconds":  "query_timeout",
+		"cortex_querier_query_duration_seconds":         "query_timeout",
+		"cortex_ingester_ingested_samples_failures_total": "ingestion_rate",
+		
+		// BYTE-BASED INGESTION METRICS - NEW COMPREHENSIVE MAPPINGS
+		"cortex_distributor_received_samples_bytes_total": "max_ingestion_rate_bytes",
+		"cortex_distributor_push_duration_seconds":       "remote_write_deadline",
+		"cortex_distributor_latest_seen_sample_timestamp_seconds": "max_sample_age",
+		"cortex_ingester_oldest_unshipped_block_timestamp_seconds": "max_chunk_age",
+		"cortex_ingester_chunk_size_bytes":               "max_chunk_size_bytes",
+		
+		// QUERY SCHEDULER METRICS - NEW COMPREHENSIVE MAPPINGS
+		"cortex_query_scheduler_queue_length":            "query_scheduler_max_outstanding_requests_per_tenant",
+		"cortex_query_scheduler_queriers_connected":      "query_scheduler_max_queriers_per_tenant", 
+		"cortex_query_scheduler_queries_in_progress":     "query_scheduler_max_active_requests",
+		"cortex_query_frontend_queue_length":             "max_outstanding_per_tenant",
+		"cortex_query_frontend_queries_in_progress":      "max_concurrent_queries",
+		
+		// STORAGE GATEWAY METRICS - NEW COMPREHENSIVE MAPPINGS
+		"cortex_bucket_store_queries_in_flight":          "store_gateway_max_queries_in_flight",
+		
+		// REQUEST & CONCURRENCY METRICS - NEW COMPREHENSIVE MAPPINGS
+		"cortex_request_duration_seconds":                "max_concurrent_requests",
+		"cortex_querier_chunks_fetched_bytes":            "max_bytes_per_query",
+		
+		// CARDINALITY & SERIES METRICS - ENHANCED MAPPINGS
+		"cortex_ingester_memory_series_per_metric":       "max_global_series_per_metric",
+		"cortex_ingester_memory_metadata":                "max_global_metadata_per_user",
+		"cortex_ingester_memory_metadata_per_metric":     "max_global_metadata_per_metric",
 		
 		// PROMETHEUS METRICS - Fallback mappings for Prometheus deployments
-		"prometheus_remote_storage_samples_in_total":    "ingestion_rate",
-		"prometheus_remote_storage_samples_burst":       "ingestion_burst_size",
-		"prometheus_tsdb_head_series":                   "max_global_series_per_user",
-		"prometheus_engine_query_samples_total":         "max_samples_per_query",
-		"prometheus_engine_query_series_total":          "max_series_per_query",
-		"prometheus_tsdb_head_chunks":                   "max_fetched_chunks_per_query",
-		"prometheus_tsdb_compaction_chunk_size_bytes":   "max_fetched_chunk_bytes_per_query",
-		"prometheus_tsdb_exemplar_exemplars_total":      "max_global_exemplars_per_user",
-		"prometheus_rule_group_rules":                   "ruler_max_rules_per_rule_group",
-		"alertmanager_notifications_total":             "alertmanager_notification_rate_limit",
-		"alertmanager_alerts":                           "alertmanager_max_alerts_count",
-		"http_requests_total":                           "request_rate",
+		"prometheus_remote_storage_samples_in_total":     "ingestion_rate",
+		"prometheus_remote_storage_samples_burst":        "ingestion_burst_size",
+		"prometheus_tsdb_head_series":                    "max_global_series_per_user",
+		"prometheus_tsdb_blocks_loaded":                  "retention_period",
+		"prometheus_engine_query_samples_total":          "max_samples_per_query",
+		"prometheus_engine_query_series_total":           "max_series_per_query",
+		"prometheus_tsdb_head_chunks":                    "max_fetched_chunks_per_query",
+		"prometheus_tsdb_compaction_chunk_size_bytes":    "max_fetched_chunk_bytes_per_query",
+		"prometheus_tsdb_exemplar_exemplars_total":       "max_global_exemplars_per_user",
+		"prometheus_rule_group_rules":                    "ruler_max_rules_per_rule_group",
+		"alertmanager_notifications_total":              "alertmanager_notification_rate_limit",
+		"alertmanager_alerts":                            "alertmanager_max_alerts_count",
+		"http_requests_total":                            "request_rate",
 		
-		// ADDITIONAL MIMIR LIMITS - Extended mapping for comprehensive limit support
-		"cortex_distributor_deduped_samples_total":      "ingestion_rate",
+		// EXTENDED MIMIR METRICS - Comprehensive limit support
+		"cortex_distributor_deduped_samples_total":       "ingestion_rate",
 		"cortex_distributor_non_ha_samples_received_total": "ingestion_rate",
-		"cortex_distributor_latest_seen_sample_timestamp_seconds": "max_global_metadata_per_user",
-		"cortex_ingester_chunks_created_total":          "max_chunks_per_query",
-		"cortex_ingester_series_removed_total":          "max_global_series_per_user",
-		"cortex_querier_series_fetched_total":           "max_series_per_query",
-		"cortex_querier_chunks_fetched_total":           "max_fetched_chunks_per_query",
-		"cortex_querier_estimated_series_count":         "max_series_per_query",
-		"cortex_query_scheduler_queue_duration_seconds": "max_query_length",
-		"cortex_compactor_runs_total":                   "compactor_blocks_retention_period",
-		"cortex_ruler_queries_total":                    "ruler_max_rule_groups_per_tenant",
+		"cortex_ingester_chunks_created_total":           "max_chunks_per_query",
+		"cortex_ingester_series_removed_total":           "max_global_series_per_user",
+		"cortex_querier_series_fetched_total":            "max_series_per_query",
+		"cortex_querier_series_fetched":                  "max_fetched_series_per_query",
+		"cortex_querier_chunks_fetched_total":            "max_fetched_chunks_per_query",
+		"cortex_querier_chunks_fetched":                  "max_fetched_chunks_per_query",
+		"cortex_querier_estimated_series_count":          "max_series_per_query",
+		"cortex_querier_estimated_memory_consumption_bytes": "max_estimated_memory_consumption_per_query",
+		"cortex_querier_estimated_chunks_fetched":        "max_estimated_fetched_chunks_per_query",
+		"cortex_querier_exemplars_fetched":               "max_exemplars_per_query",
+		"cortex_compactor_runs_total":                    "compactor_blocks_retention_period",
+		"cortex_ruler_queries_total":                     "ruler_max_rule_groups_per_tenant",
+		"cortex_ruler_rule_group_rules":                  "ruler_max_rules_per_rule_group",
+		"cortex_ruler_rule_groups_per_user":              "ruler_max_rule_groups_per_tenant",
+		"cortex_ruler_rules_per_user":                    "ruler_max_rules_per_tenant",
+		
+		// ALERTMANAGER METRICS - Comprehensive coverage
+		"cortex_alertmanager_notifications_total":        "alertmanager_notification_rate_limit",
+		"cortex_alertmanager_dispatcher_aggregation_groups": "alertmanager_max_dispatcher_aggregation_groups",
+		"cortex_alertmanager_alerts":                     "alertmanager_max_alerts_count",
+		"cortex_alertmanager_alerts_size_bytes":          "alertmanager_max_alerts_size_bytes",
+		
+		// INGESTER TSDB METRICS - Enhanced coverage
+		"cortex_ingester_tsdb_exemplar_series_with_exemplars_in_storage": "max_global_exemplars_per_user",
+		"cortex_ingester_active_series":                  "max_label_names_per_series",
 	}
 }
 
