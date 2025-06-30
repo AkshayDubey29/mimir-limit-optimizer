@@ -354,7 +354,8 @@ func (p *ConfigMapPatcher) updateConfigMap(ctx context.Context, configMap *corev
 	if configMap.Labels == nil {
 		configMap.Labels = make(map[string]string)
 	}
-	configMap.Labels["mimir-limit-optimizer/last-update"] = time.Now().Format(time.RFC3339)
+	// Use Unix timestamp as it contains only digits and is Kubernetes label-safe
+	configMap.Labels["mimir-limit-optimizer/last-update"] = strconv.FormatInt(time.Now().Unix(), 10)
 
 	return p.client.Update(ctx, configMap)
 }
@@ -422,7 +423,8 @@ func (p *ConfigMapPatcher) restartDeployment(ctx context.Context, deploymentName
 	if deployment.Spec.Template.Annotations == nil {
 		deployment.Spec.Template.Annotations = make(map[string]string)
 	}
-	deployment.Spec.Template.Annotations["mimir-limit-optimizer/restarted-at"] = time.Now().Format(time.RFC3339)
+	// Use Unix timestamp for annotations as well to ensure consistency
+	deployment.Spec.Template.Annotations["mimir-limit-optimizer/restarted-at"] = strconv.FormatInt(time.Now().Unix(), 10)
 
 	// Update deployment
 	_, err = p.kubeClient.AppsV1().Deployments(p.config.Mimir.Namespace).Update(ctx, deployment, metav1.UpdateOptions{})
