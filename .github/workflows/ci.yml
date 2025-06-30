@@ -46,14 +46,15 @@ jobs:
         
     - name: Run yamllint on Helm charts
       run: |
-        echo "🔍 Running yamllint on Helm charts..."
+        echo "🔍 Running yamllint on Helm charts (static files only)..."
+        echo "ℹ️  Note: Helm templates are excluded and validated by helm lint instead"
         EXIT_CODE=0
         yamllint helm/ || EXIT_CODE=$?
         if [ $EXIT_CODE -ne 0 ]; then
           echo "⚠️  YAML linting found issues in Helm charts (warnings allowed)"
           echo "ℹ️  Run 'yamllint helm/' locally to see detailed issues"
         else
-          echo "✅ Helm charts passed YAML validation"
+          echo "✅ Helm chart static files passed YAML validation"
         fi
         
     - name: Run yamllint on workflow files
@@ -68,29 +69,72 @@ jobs:
           echo "✅ Workflow files passed YAML validation"
         fi
         
-    - name: Validate YAML syntax in all files
+    - name: Validate YAML syntax in static files
       run: |
-        echo "🔍 Validating YAML syntax in all YAML files..."
+        echo "🔍 Validating YAML syntax in static YAML files (excluding Helm templates)..."
+        
+        # Create a simple Python validator script
+        cat > validate_yaml.py << 'EOF'
+        import yaml
+        import sys
+        
+        def validate_file(filepath):
+            try:
+                with open(filepath, 'r') as f:
+                    yaml.safe_load(f)
+                print(f"✅ Valid: {filepath}")
+                return True
+            except yaml.YAMLError as e:
+                print(f"❌ YAML syntax error in: {filepath}")
+                print(f"Error: {e}")
+                return False
+            except Exception as e:
+                print(f"⚠️  Could not validate: {filepath}")
+                print(f"Error: {e}")
+                return False
+        
+        if __name__ == "__main__":
+            filepath = sys.argv[1]
+            if not validate_file(filepath):
+                sys.exit(1)
+        EOF
+        
+        # Validate static YAML files
+        VALIDATION_FAILED=0
         find . -name "*.yml" -o -name "*.yaml" | while read -r file; do
-          if [[ "$file" == *".git/"* ]] || [[ "$file" == *"node_modules/"* ]]; then
+          # Skip directories and files that shouldn't be validated with regular YAML parser
+          if [[ "$file" == *".git/"* ]] || \
+             [[ "$file" == *"node_modules/"* ]] || \
+             [[ "$file" == *"/templates/"* ]] || \
+             [[ "$file" == *"_helpers.tpl" ]]; then
+            echo "Skipping Helm template: $file"
             continue
           fi
+          
           echo "Checking: $file"
-          python -c "import yaml; yaml.safe_load(open('$file'))" || {
-            echo "❌ YAML syntax error in: $file"
-            exit 1
-          }
+          python3 validate_yaml.py "$file" || VALIDATION_FAILED=1
         done
-        echo "✅ All YAML files have valid syntax"
+        
+        if [ $VALIDATION_FAILED -eq 1 ]; then
+          echo "❌ YAML validation failed for one or more files"
+          exit 1
+        fi
+        
+        echo "✅ All static YAML files have valid syntax"
+        echo "ℹ️  Helm templates are validated separately by helm lint and helm template"
+        
+        # Clean up
+        rm validate_yaml.py
         
     - name: Summary
       run: |
         echo "✅ YAML linting and validation completed"
         echo "📊 Summary:"
         echo "  - Critical files: ✅ PASSED (strict validation)"
-        echo "  - Helm charts: ✅ CHECKED (warnings allowed)"
+        echo "  - Helm chart static files: ✅ CHECKED (warnings allowed)"
+        echo "  - Helm templates: ✅ VALIDATED (by helm lint separately)"
         echo "  - Workflows: ✅ CHECKED (warnings allowed)"
-        echo "  - Syntax validation: ✅ PASSED (all files)"
+        echo "  - Static YAML syntax: ✅ PASSED (all non-template files)"
         echo ""
         echo "💡 To fix YAML issues locally:"
         echo "   # Install yamllint"
@@ -158,14 +202,15 @@ jobs:
         
     - name: Lint Helm charts
       run: |
-        echo "🔍 Running helm lint..."
+        echo "🔍 Running helm lint (validates templates, values, and chart structure)..."
         helm lint ./helm/mimir-limit-optimizer
+        echo "✅ Helm chart structure and templates are valid"
         
     - name: Validate Helm template generation
       run: |
-        echo "🔍 Testing Helm template generation..."
+        echo "🔍 Testing Helm template generation (validates Go template syntax)..."
         helm template test-release ./helm/mimir-limit-optimizer --dry-run > /dev/null
-        echo "✅ Helm templates generate successfully"
+        echo "✅ Helm templates generate valid Kubernetes manifests"
         
     - name: Test Helm chart with different values
       run: |

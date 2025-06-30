@@ -57,5 +57,7 @@ ignore: |
   .git/
   node_modules/
   .github/
+  # Helm template files contain Go template syntax that yamllint cannot parse
+  helm/**/templates/
   **/templates/_helpers.tpl
   .yamllint.yml 
