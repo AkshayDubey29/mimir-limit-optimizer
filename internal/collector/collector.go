@@ -3,6 +3,7 @@ package collector
 import (
 	"context"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -78,14 +79,18 @@ func (c *MimirCollector) CollectMetrics(ctx context.Context) (map[string]*Tenant
 	
 	// Add discovered services if auto-discovery is enabled
 	if c.config.MetricsDiscovery.Enabled {
+		c.log.V(1).Info("auto-discovery enabled, discovering metrics endpoints")
 		discoveredSources, err := c.discovery.DiscoverMetricsEndpoints(ctx)
 		if err != nil {
 			c.log.Error(err, "failed to discover metrics endpoints")
 			metrics.DiscoveryMetricsInstance.IncDiscoveryErrors()
 		} else {
+			c.log.V(1).Info("discovered metrics endpoints", "count", len(discoveredSources), "endpoints", discoveredSources)
 			sources = append(sources, discoveredSources...)
 			metrics.DiscoveryMetricsInstance.SetServicesDiscovered(float64(len(discoveredSources)))
 		}
+	} else {
+		c.log.V(1).Info("auto-discovery disabled")
 	}
 	
 	if len(sources) == 0 {
@@ -134,14 +139,47 @@ func (c *MimirCollector) collectFromSource(ctx context.Context, source string) (
 	// Add tenant headers for multi-tenant Mimir
 	c.addTenantHeaders(req)
 	
+	// Debug logging: Show the complete request details
+	c.log.V(1).Info("making HTTP request for metrics",
+		"url", source,
+		"method", req.Method,
+		"headers", req.Header)
+	
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
+		c.log.Error(err, "HTTP request failed",
+			"url", source,
+			"method", req.Method,
+			"headers", req.Header)
 		return nil, fmt.Errorf("failed to fetch metrics: %w", err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 	
+	// Debug logging: Show response details
+	c.log.V(1).Info("received HTTP response",
+		"url", source,
+		"statusCode", resp.StatusCode,
+		"status", resp.Status,
+		"responseHeaders", resp.Header,
+		"contentLength", resp.ContentLength)
+	
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+		// Read response body for debugging 404 errors
+		bodyBytes, readErr := io.ReadAll(resp.Body)
+		bodyContent := "unable to read body"
+		if readErr == nil {
+			bodyContent = string(bodyBytes)
+		}
+		
+		c.log.Error(fmt.Errorf("unexpected status code: %d", resp.StatusCode), "HTTP request failed with non-200 status",
+			"url", source,
+			"statusCode", resp.StatusCode,
+			"status", resp.Status,
+			"responseHeaders", resp.Header,
+			"responseBody", bodyContent,
+			"requestHeaders", req.Header)
+		
+		return nil, fmt.Errorf("unexpected status code: %d, response: %s", resp.StatusCode, bodyContent)
 	}
 	
 	// Parse metrics
@@ -315,6 +353,8 @@ func (c *MimirCollector) addTenantHeaders(req *http.Request) {
 	if c.config.MetricsDiscovery.TenantDiscovery.MetricsTenantID != "" {
 		req.Header.Set("X-Scope-OrgID", c.config.MetricsDiscovery.TenantDiscovery.MetricsTenantID)
 		c.log.V(1).Info("added tenant header", "tenant", c.config.MetricsDiscovery.TenantDiscovery.MetricsTenantID)
+	} else {
+		c.log.V(1).Info("no tenant ID configured - will query without tenant scoping")
 	}
 	
 	// Add any additional custom headers
