@@ -13,5 +13,11 @@ spec:
     targetPort: metrics
     protocol: TCP
     name: http-metrics
+  {{- if .Values.ui.enabled}}
+  - port: {{.Values.ui.port}}
+    targetPort: ui
+    protocol: TCP
+    name: http-ui
+  {{- end}}
   selector:
     {{- include "mimir-limit-optimizer.selectorLabels" . | nindent 4}} 
