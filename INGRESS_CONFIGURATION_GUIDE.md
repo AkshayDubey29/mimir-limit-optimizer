@@ -192,12 +192,47 @@ ui:
       kubernetes.io/ingress.class: alb
       alb.ingress.kubernetes.io/scheme: internet-facing
       alb.ingress.kubernetes.io/target-type: ip
+      # Health check configuration (CRITICAL for ALB)
+      alb.ingress.kubernetes.io/healthcheck-path: /api/health
+      alb.ingress.kubernetes.io/healthcheck-port: "8082"
+      alb.ingress.kubernetes.io/healthcheck-protocol: HTTP
+      alb.ingress.kubernetes.io/healthcheck-interval-seconds: "30"
+      alb.ingress.kubernetes.io/healthcheck-timeout-seconds: "5"
+      alb.ingress.kubernetes.io/healthy-threshold-count: "2"
+      alb.ingress.kubernetes.io/unhealthy-threshold-count: "3"
+      # Optional: SSL certificate
       alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:region:account:certificate/cert-id
+      # Optional: Load balancer attributes
+      alb.ingress.kubernetes.io/load-balancer-attributes: idle_timeout.timeout_seconds=60
     hosts:
       - host: mimir-optimizer.example.com
         paths:
           - path: /
             pathType: Prefix
+```
+
+### **ALB with Multiple Paths (Alternative)**
+
+```yaml
+ui:
+  ingress:
+    enabled: true
+    className: "alb"
+    annotations:
+      kubernetes.io/ingress.class: alb
+      alb.ingress.kubernetes.io/scheme: internet-facing
+      alb.ingress.kubernetes.io/target-type: ip
+      # Use root path for health check if /api/health doesn't exist
+      alb.ingress.kubernetes.io/healthcheck-path: /
+      alb.ingress.kubernetes.io/healthcheck-interval-seconds: "30"
+      alb.ingress.kubernetes.io/success-codes: "200,404"  # Accept 404 if root doesn't exist
+    hosts:
+      - host: mimir-optimizer.example.com
+        paths:
+          - path: /
+            pathType: Prefix
+          - path: /api/*
+            pathType: ImplementationSpecific
 ```
 
 ## 🔍 **Verification Steps**
@@ -270,6 +305,60 @@ kubectl get ingress -n mimir-limit-optimizer -o yaml | grep -A3 "service:"
 kubectl get svc -n mimir-limit-optimizer
 ```
 
+### **Issue: ALB Health Check Failures (404 Errors)**
+```bash
+# 1. Check ALB target group health
+kubectl describe ingress -n mimir-limit-optimizer
+
+# 2. Check if UI service is responding
+kubectl port-forward -n mimir-limit-optimizer svc/mimir-limit-optimizer-ui 8082:8082 &
+curl -I http://localhost:8082/
+curl -I http://localhost:8082/api/health
+
+# 3. Check pod readiness and logs
+kubectl get pods -n mimir-limit-optimizer
+kubectl logs -n mimir-limit-optimizer deployment/mimir-limit-optimizer --tail=50
+
+# 4. Verify service endpoints
+kubectl get endpoints -n mimir-limit-optimizer
+
+# 5. Check ALB annotations
+kubectl get ingress -n mimir-limit-optimizer -o yaml | grep -A20 "annotations:"
+```
+
+### **ALB Health Check Quick Fixes**
+
+**Option 1: Use /api/health endpoint**
+```bash
+helm upgrade mimir-limit-optimizer ./helm/mimir-limit-optimizer \
+  --set ui.ingress.enabled=true \
+  --set ui.ingress.className=alb \
+  --set ui.ingress.annotations."alb\.ingress\.kubernetes\.io/healthcheck-path"=/api/health \
+  --set ui.ingress.annotations."alb\.ingress\.kubernetes\.io/healthcheck-port"=8082 \
+  --set ui.ingress.annotations."alb\.ingress\.kubernetes\.io/success-codes"=200 \
+  --reuse-values
+```
+
+**Option 2: Accept 404 for root path**
+```bash
+helm upgrade mimir-limit-optimizer ./helm/mimir-limit-optimizer \
+  --set ui.ingress.enabled=true \
+  --set ui.ingress.className=alb \
+  --set ui.ingress.annotations."alb\.ingress\.kubernetes\.io/healthcheck-path"=/ \
+  --set ui.ingress.annotations."alb\.ingress\.kubernetes\.io/success-codes"="200,404" \
+  --reuse-values
+```
+
+**Option 3: Use readiness probe path**
+```bash
+helm upgrade mimir-limit-optimizer ./helm/mimir-limit-optimizer \
+  --set ui.ingress.enabled=true \
+  --set ui.ingress.className=alb \
+  --set ui.ingress.annotations."alb\.ingress\.kubernetes\.io/healthcheck-path"=/healthz \
+  --set ui.ingress.annotations."alb\.ingress\.kubernetes\.io/healthcheck-port"=8080 \
+  --reuse-values
+```
+
 ## 📖 **Example Values Files**
 
 ### **Basic Ingress (values-ingress-basic.yaml)**
@@ -317,6 +406,73 @@ ui:
     servicePort: 8082
     hosts:
       - host: mimir-optimizer-dev.local
+        paths:
+          - path: /
+            pathType: Prefix
+```
+
+### **AWS ALB Ingress (values-alb-prod.yaml)**
+```yaml
+ui:
+  enabled: true
+  ingress:
+    enabled: true
+    className: "alb"
+    annotations:
+      # Basic ALB configuration
+      kubernetes.io/ingress.class: alb
+      alb.ingress.kubernetes.io/scheme: internet-facing
+      alb.ingress.kubernetes.io/target-type: ip
+      
+      # Health check configuration (CRITICAL)
+      alb.ingress.kubernetes.io/healthcheck-path: /api/health
+      alb.ingress.kubernetes.io/healthcheck-port: "8082"
+      alb.ingress.kubernetes.io/healthcheck-protocol: HTTP
+      alb.ingress.kubernetes.io/healthcheck-interval-seconds: "30"
+      alb.ingress.kubernetes.io/healthcheck-timeout-seconds: "5"
+      alb.ingress.kubernetes.io/healthy-threshold-count: "2"
+      alb.ingress.kubernetes.io/unhealthy-threshold-count: "3"
+      alb.ingress.kubernetes.io/success-codes: "200"
+      
+      # SSL/TLS configuration
+      alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:us-east-1:123456789012:certificate/12345678-1234-1234-1234-123456789012
+      alb.ingress.kubernetes.io/ssl-policy: ELBSecurityPolicy-FS-1-2-Res-2020-10
+      alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
+      alb.ingress.kubernetes.io/ssl-redirect: "443"
+      
+      # Load balancer attributes
+      alb.ingress.kubernetes.io/load-balancer-attributes: |
+        idle_timeout.timeout_seconds=60,
+        routing.http2.enabled=true,
+        access_logs.s3.enabled=true,
+        access_logs.s3.bucket=my-alb-logs-bucket,
+        access_logs.s3.prefix=mimir-optimizer
+        
+    hosts:
+      - host: mimir-optimizer.company.com
+        paths:
+          - path: /
+            pathType: Prefix
+```
+
+### **AWS ALB Ingress Alternative (values-alb-simple.yaml)**
+```yaml
+ui:
+  enabled: true
+  ingress:
+    enabled: true
+    className: "alb"
+    annotations:
+      # Minimal ALB configuration that accepts 404s
+      kubernetes.io/ingress.class: alb
+      alb.ingress.kubernetes.io/scheme: internet-facing
+      alb.ingress.kubernetes.io/target-type: ip
+      alb.ingress.kubernetes.io/healthcheck-path: /
+      alb.ingress.kubernetes.io/success-codes: "200,404"  # Accept 404 for root path
+      alb.ingress.kubernetes.io/healthcheck-interval-seconds: "15"
+      alb.ingress.kubernetes.io/unhealthy-threshold-count: "5"
+    hosts:
+      - host: mimir-optimizer.company.com
         paths:
           - path: /
             pathType: Prefix
