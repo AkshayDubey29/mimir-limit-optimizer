@@ -672,6 +672,9 @@ prometheusRule:
 
 # Health probes configuration
 healthProbes:
+  # Health probe port (where /healthz and /readyz endpoints are served)
+  port: 8081
+  
   liveness:
     enabled: true
     initialDelaySeconds: 30

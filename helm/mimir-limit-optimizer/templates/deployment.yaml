@@ -45,7 +45,7 @@ spec:
         args:
         - --config=/etc/config/config.yaml
         - --metrics-bind-address=0.0.0.0:{{.Values.metrics.port}}
-        - --health-probe-bind-address=0.0.0.0:8081
+        - --health-probe-bind-address=0.0.0.0:{{.Values.healthProbes.port}}
         - --log-level={{.Values.logging.level}}
         {{- if .Values.leaderElection.enabled}}
         - --leader-elect
@@ -58,7 +58,7 @@ spec:
           containerPort: {{.Values.metrics.port}}
           protocol: TCP
         - name: health
-          containerPort: 8081
+          containerPort: {{.Values.healthProbes.port}}
           protocol: TCP
         {{- if .Values.ui.enabled}}
         - name: ui
