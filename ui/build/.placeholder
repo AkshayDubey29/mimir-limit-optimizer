@@ -1,6 +1,0 @@
-# Placeholder file for go:embed directive
-# This file ensures ui/build/* pattern works in CI/development environments
-# Real build files will overwrite this directory during the build process
-
-This is a placeholder file to satisfy the //go:embed ui/build/* directive in main.go.
-The actual build process will replace this with real build artifacts. 
