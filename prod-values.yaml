@@ -1,0 +1,264 @@
+# Production values for Mimir Limit Optimizer
+# Deploy with: helm install mimir-optimizer ./helm/mimir-limit-optimizer -f prod-values.yaml
+
+# Controller configuration - PRODUCTION MODE
+controller:
+  mode: "prod"  # Enable production mode
+  bufferPercentage: 20
+  updateInterval: "5m"
+
+# Container image - Use latest stable release
+image:
+  repository: ghcr.io/akshaydubey29/mimir-limit-optimizer
+  tag: "v3.0.2"
+  pullPolicy: IfNotPresent
+
+# Web UI Dashboard - ENABLED for monitoring
+ui:
+  enabled: true
+  port: 8082
+  
+  service:
+    type: ClusterIP
+    port: 8082
+    annotations: {}
+  
+  ingress:
+    enabled: true
+    className: "nginx"
+    annotations:
+      cert-manager.io/cluster-issuer: "letsencrypt-prod"
+      nginx.ingress.kubernetes.io/ssl-redirect: "true"
+      nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+      nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
+    
+    hosts:
+      - host: mimir-optimizer.yourdomain.com  # CHANGE THIS
+        paths:
+          - path: /
+            pathType: Prefix
+    
+    tls:
+      - secretName: mimir-optimizer-tls
+        hosts:
+          - mimir-optimizer.yourdomain.com  # CHANGE THIS
+
+# Mimir configuration - UPDATE FOR YOUR ENVIRONMENT
+mimir:
+  namespace: "mimir"  # CHANGE IF DIFFERENT
+  configMapName: "mimir-runtime-overrides"  # CHANGE IF DIFFERENT
+  triggerRollout: false  # Usually not needed with runtime overrides
+
+# Resource configuration - Production sizing
+resources:
+  limits:
+    cpu: 1000m
+    memory: 1Gi
+  requests:
+    cpu: 200m
+    memory: 256Mi
+
+# Replica count for HA
+replicaCount: 2
+
+# Security configuration
+rbac:
+  create: true
+
+serviceAccount:
+  create: true
+  annotations: {}
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 65534
+  fsGroup: 65534
+
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  runAsUser: 65534
+
+# Monitoring and alerting
+serviceMonitor:
+  enabled: true
+  interval: 30s
+  scrapeTimeout: 10s
+  labels:
+    team: platform
+    app: mimir-optimizer
+
+prometheusRule:
+  enabled: true
+  labels:
+    team: platform
+    app: mimir-optimizer
+
+# Audit logging with production retention
+auditLog:
+  enabled: true
+  storageType: "configmap"
+  configMapName: "mimir-limit-optimizer-audit"
+  retention:
+    retentionPeriod: "168h"  # 7 days
+    maxEntries: 5000
+    maxSizeBytes: 900000     # 900KB
+    cleanupInterval: "30m"
+    cleanupBatchSize: 200
+    emergencyThresholdPercent: 85.0
+
+# Production metrics discovery
+metricsDiscovery:
+  enabled: true
+  namespace: "mimir"  # CHANGE IF DIFFERENT
+  serviceLabelSelector: "app.kubernetes.io/part-of=mimir"  # UPDATE FOR YOUR LABELS
+  serviceNames:  # UPDATE FOR YOUR MIMIR DEPLOYMENT
+    - "distributor"
+    - "ingester"
+    - "querier"
+    - "query-frontend"
+    - "query-scheduler"
+    - "compactor"
+    - "store-gateway"
+    - "alertmanager"
+    - "overrides-exporter"
+  metricsPath: "/metrics"
+  portName: "http-metrics"
+  port: 8080
+
+# Dynamic limits with production settings
+dynamicLimits:
+  enabled: true
+  defaultBuffer: 20.0
+  autoDetect: true
+  enabledLimits:
+    - ingestion_rate
+    - ingestion_burst_size
+    - max_global_series_per_user
+    - max_samples_per_query
+    - max_fetched_chunks_per_query
+    - max_fetched_series_per_query
+
+# Event-driven optimization
+eventSpike:
+  enabled: true
+  threshold: 2.0
+  detectionWindow: "5m"
+  cooldownPeriod: "30m"
+  maxSpikeMultiplier: 5.0
+
+# Trend analysis
+trendAnalysis:
+  analysisWindow: "48h"
+  percentile: 95.0
+  useMovingAverage: true
+  includePeaks: true
+
+# Cost control (Enterprise feature)
+costControl:
+  enabled: true
+  costMethod: "composite"
+  costPerUnit: 0.001
+  globalBudget:
+    daily: 1000
+    monthly: 30000
+    annual: 365000
+    currency: "USD"
+    enforceBudget: false  # Monitor only
+  alertThresholds: [50, 75, 90, 95]
+
+# Circuit breaker (Enterprise feature) - ENABLED IN PROD
+circuitBreaker:
+  enabled: true
+  runtimeEnabled: true
+  mode: "auto"
+  autoConfig:
+    enabled: true
+    baselineWindow: "24h"
+    minObservationPeriod: "1h"
+    realtimeAdaptation:
+      enabled: true
+      interval: "5m"
+
+# Performance optimization
+performance:
+  enabled: true
+  cache:
+    enabled: true
+    ttl: "5m"
+    sizeMB: 256
+    type: "memory"
+  batchProcessing:
+    enabled: true
+    size: 100
+    timeout: "30s"
+    maxConcurrent: 10
+
+# Health probes
+healthProbes:
+  # Health probe port (where /healthz and /readyz endpoints are served)
+  port: 8081
+  
+  liveness:
+    enabled: true
+    initialDelaySeconds: 60
+    periodSeconds: 30
+    timeoutSeconds: 10
+    failureThreshold: 3
+  readiness:
+    enabled: true
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+# Logging
+logging:
+  level: "info"
+  format: "json"
+
+# Leader election for HA
+leaderElection:
+  enabled: true
+
+# Node placement (optional)
+nodeSelector: {}
+tolerations: []
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+    - weight: 100
+      podAffinityTerm:
+        labelSelector:
+          matchExpressions:
+          - key: app.kubernetes.io/name
+            operator: In
+            values:
+            - mimir-limit-optimizer
+        topologyKey: kubernetes.io/hostname
+
+# Pod annotations for monitoring
+podAnnotations:
+  prometheus.io/scrape: "true"
+  prometheus.io/port: "8080"
+  prometheus.io/path: "/metrics"
+
+# Environment variables (if needed)
+env: []
+  # - name: LOG_LEVEL
+  #   value: "info"
+  # - name: CUSTOM_CONFIG
+  #   value: "production"
+
+# Tenant scoping (customize for your environment)
+tenantScoping:
+  skipList:
+    - "internal-*"
+    - "staging-*"
+    - "test-*"
+  includeList: []
+  useRegex: false 
