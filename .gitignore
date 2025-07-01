@@ -131,6 +131,10 @@ ui/build/*
 !ui/build/index.html.placeholder
 !ui/build/static/
 !ui/build/static/.placeholder
+!ui/build/static/css/
+!ui/build/static/css/placeholder.css
+!ui/build/static/js/
+!ui/build/static/js/placeholder.js
 
 # Docker
 .dockerignore
