@@ -125,8 +125,12 @@ logs
 ehthumbs.db
 Thumbs.db
 
-# React build output
-ui/build/
+# React build output (exclude real build files but allow placeholders)
+ui/build/*
+!ui/build/.placeholder
+!ui/build/index.html.placeholder
+!ui/build/static/
+!ui/build/static/.placeholder
 
 # Docker
 .dockerignore

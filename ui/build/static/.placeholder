@@ -1,0 +1,3 @@
+# Placeholder for static directory
+# This ensures the ui/build/static/ directory exists for the go:embed directive
+# Real CSS and JS files will be placed here during the build process 
