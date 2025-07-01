@@ -165,21 +165,10 @@ func main() {
 
 	// Setup the web UI server if enabled
 	if cfg.UI.Enabled {
-		apiServer := api.NewServer(mimirController, cfg, ctrl.Log.WithName("api"))
+		apiServer := api.NewServer(mimirController, cfg, ctrl.Log.WithName("api"), uiAssets)
 		
 		// Start the UI server in a goroutine
 		go func() {
-			// Setup static UI file server
-			uiBuildFS, err := fs.Sub(uiAssets, "ui/build")
-			if err != nil {
-				setupLog.Error(err, "failed to create UI filesystem")
-				return
-			}
-			
-			// Serve static UI files
-			fileServer := http.FileServer(http.FS(uiBuildFS))
-			http.Handle("/", fileServer)
-			
 			// Start the server on configured port
 			if err := apiServer.Start(cfg.UI.Port); err != nil && err != http.ErrServerClosed {
 				setupLog.Error(err, "failed to start UI server")
