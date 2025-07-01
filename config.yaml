@@ -51,4 +51,9 @@ auditLog:
     maxSizeBytes: 819200           # 800KB (safe margin under 1MB ConfigMap limit)
     cleanupInterval: "1h"          # Cleanup every hour
     cleanupBatchSize: 100          # Process 100 entries at a time
-    emergencyThresholdPercent: 90.0 # Emergency cleanup at 90% capacity 
+    emergencyThresholdPercent: 90.0 # Emergency cleanup at 90% capacity
+
+# Web UI configuration
+ui:
+  enabled: true
+  port: 8082 
