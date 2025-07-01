@@ -323,7 +323,9 @@ func runStandalone(cfg *config.Config) error {
 				"mode": "standalone",
 				"message": "Running in standalone mode with synthetic tenants",
 			})
-			w.Write(tenantsJSON)
+			if _, err := w.Write(tenantsJSON); err != nil {
+				setupLog.Error(err, "failed to write tenants JSON response")
+			}
 		})
 		
 		// Start the server
