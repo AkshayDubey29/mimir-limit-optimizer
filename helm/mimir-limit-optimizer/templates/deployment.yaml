@@ -60,6 +60,11 @@ spec:
         - name: health
           containerPort: 8081
           protocol: TCP
+        {{- if .Values.ui.enabled}}
+        - name: ui
+          containerPort: {{.Values.ui.port}}
+          protocol: TCP
+        {{- end}}
         {{- if .Values.healthProbes.liveness.enabled}}
         livenessProbe:
           httpGet:

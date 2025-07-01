@@ -4,6 +4,7 @@ go 1.21
 
 require (
 	github.com/go-logr/logr v1.2.4
+	github.com/gorilla/mux v1.8.0
 	github.com/prometheus/client_golang v1.17.0
 	github.com/prometheus/client_model v0.4.1-0.20230718164431-9a2bf3000d16
 	github.com/prometheus/common v0.44.0
