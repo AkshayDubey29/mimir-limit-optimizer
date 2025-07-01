@@ -129,11 +129,14 @@ func (s *Server) corsMiddleware(next http.Handler) http.Handler {
 func (s *Server) writeError(w http.ResponseWriter, code int, message string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(code)
-	json.NewEncoder(w).Encode(map[string]interface{}{
-		"error":   true,
-		"message": message,
+	if err := json.NewEncoder(w).Encode(map[string]interface{}{
+		"error":     true,
+		"message":   message,
 		"timestamp": time.Now().Format(time.RFC3339),
-	})
+	}); err != nil {
+		s.log.Error(err, "failed to encode error response")
+		// Note: Cannot modify headers or write additional content after WriteHeader() is called
+	}
 }
 
 func (s *Server) writeJSON(w http.ResponseWriter, data interface{}) {
