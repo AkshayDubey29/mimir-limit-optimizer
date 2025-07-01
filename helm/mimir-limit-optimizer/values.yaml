@@ -49,10 +49,21 @@ ui:
     # Ingress class name
     className: ""
     
+    # Service configuration for ingress
+    # By default, uses the dedicated UI service. You can also use the main service.
+    serviceName: ""  # Default: "<release-name>-mimir-limit-optimizer-ui"
+    servicePort: ""  # Default: same as ui.service.port (8082)
+    
+    # Alternative: Use main service (includes both metrics and UI ports)
+    # serviceName: "<release-name>-mimir-limit-optimizer"
+    # servicePort: 8082
+    
     # Annotations for the ingress
     annotations: {}
       # kubernetes.io/ingress.class: nginx
       # cert-manager.io/cluster-issuer: letsencrypt-prod
+      # nginx.ingress.kubernetes.io/rewrite-target: /
+      # nginx.ingress.kubernetes.io/ssl-redirect: "true"
     
     # Hosts configuration
     hosts:
