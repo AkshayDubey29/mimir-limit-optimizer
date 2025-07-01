@@ -194,9 +194,279 @@ dynamicLimits:
 
 **📚 Complete Documentation:** [Dynamic Limits Guide](docs/DYNAMIC-LIMITS.md)
 
-## 🏗️ **System Architecture Overview**
+## 🎛️ **Web UI Dashboard - NEW Enterprise Feature**
 
-The Mimir Limit Optimizer acts as an intelligent **middleware layer** between your monitoring infrastructure and Mimir, providing **automated protection, cost control, and performance optimization**. It continuously analyzes metrics, calculates optimal limits, and applies protective measures while maintaining full observability and audit capabilities.
+**Modern React-based web interface providing real-time monitoring, configuration management, and comprehensive analytics for your Mimir Limit Optimizer deployment.**
+
+### **🚀 Dashboard Overview**
+
+The Web UI transforms the command-line experience into an intuitive, enterprise-grade dashboard with **7 comprehensive pages** for complete system visibility and control.
+
+| **Page** | **Purpose** | **Key Features** |
+|----------|-------------|------------------|
+| **📊 Dashboard** | System overview & metrics | Real-time stats, tenant performance, limit usage |
+| **👥 Tenants** | Tenant management | Per-tenant limits, usage analytics, cost tracking |
+| **📈 Metrics** | Metrics monitoring | Live charts, trend analysis, performance indicators |
+| **⚙️ Config** | Configuration management | Dynamic limit configuration, YAML editor |
+| **🔍 Audit Log** | Audit & compliance | Complete activity history, limit changes, events |
+| **📋 Diff Viewer** | Change visualization | Before/after comparisons, configuration diffs |
+| **🛠️ Test Tools** | Testing & validation | Synthetic data generation, configuration testing |
+
+### **✨ Key UI Features**
+
+#### **🎨 Modern Design & UX**
+- **Dark/Light Theme**: Automatic theme switching with user preference
+- **Responsive Design**: Optimized for desktop, tablet, and mobile
+- **Real-time Updates**: Live data refresh with WebSocket connections
+- **Interactive Charts**: Recharts integration for beautiful data visualization
+
+#### **📊 Comprehensive Analytics**
+- **Tenant Performance**: Per-tenant ingestion rates, series counts, query performance
+- **Cost Analytics**: Real-time cost tracking, budget utilization, forecasting
+- **Limit Utilization**: Visual representation of limit usage vs. capacity
+- **Historical Trends**: 24h, 7d, 30d trend analysis with percentile calculations
+
+#### **⚙️ Configuration Management**
+- **Dynamic Limits Editor**: Visual editor for all 30+ Mimir limits
+- **YAML Configuration**: Syntax-highlighted YAML editor with validation
+- **Live Preview**: Real-time configuration validation and preview
+- **Change Management**: Track configuration changes with diff visualization
+
+#### **🔍 Advanced Monitoring**
+- **Real-time Metrics**: Live dashboard with auto-refresh
+- **Alert Integration**: Visual alert status and notification center
+- **Circuit Breaker Status**: Real-time circuit breaker state visualization
+- **System Health**: Component status, resource utilization, performance metrics
+
+### **🎛️ UI Configuration**
+
+#### **Basic UI Setup** (Default: Enabled)
+```yaml
+# Helm values.yaml
+ui:
+  enabled: true       # Enable/disable the web dashboard
+  port: 8082         # UI server port (avoid conflict with health probe on 8081)
+  
+  service:
+    type: ClusterIP   # Service type for UI access
+    port: 8082        # Service port
+    annotations: {}   # Service annotations
+  
+  ingress:
+    enabled: false    # Enable for external access
+    className: ""     # Ingress class
+    hosts:
+      - host: mimir-optimizer.example.com
+        paths:
+          - path: /
+            pathType: Prefix
+```
+
+#### **External Access Configuration**
+```yaml
+# Enable external access via Ingress
+ui:
+  enabled: true
+  ingress:
+    enabled: true
+    className: "nginx"
+    annotations:
+      cert-manager.io/cluster-issuer: "letsencrypt-prod"
+      nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    hosts:
+      - host: mimir-optimizer.yourdomain.com
+        paths:
+          - path: /
+            pathType: Prefix
+    tls:
+      - secretName: mimir-optimizer-tls
+        hosts:
+          - mimir-optimizer.yourdomain.com
+```
+
+#### **Production Security Configuration**
+```yaml
+# Enhanced security for production
+ui:
+  enabled: true
+  service:
+    annotations:
+      # Network policies
+      networking.gke.io/allow-tcp-8082: "true"
+      # Service mesh integration
+      linkerd.io/inject: enabled
+  
+  ingress:
+    enabled: true
+    annotations:
+      # Security headers
+      nginx.ingress.kubernetes.io/configuration-snippet: |
+        add_header X-Frame-Options DENY;
+        add_header X-Content-Type-Options nosniff;
+        add_header X-XSS-Protection "1; mode=block";
+      # Rate limiting
+      nginx.ingress.kubernetes.io/rate-limit: "100"
+      nginx.ingress.kubernetes.io/rate-limit-window: "1m"
+```
+
+### **🚀 Quick UI Access**
+
+#### **Local Access (Port Forward)**
+```bash
+# Access UI via port forwarding (development/testing)
+kubectl port-forward -n mimir-limit-optimizer \
+  svc/mimir-limit-optimizer-ui 8082:8082
+
+# Open browser: http://localhost:8082
+```
+
+#### **Internal Cluster Access**
+```bash
+# Access via cluster DNS (from within cluster)
+curl http://mimir-limit-optimizer-ui.mimir-limit-optimizer.svc.cluster.local:8082
+
+# Service discovery
+kubectl get svc -n mimir-limit-optimizer mimir-limit-optimizer-ui
+```
+
+#### **External Access (Production)**
+```bash
+# Deploy with external access
+helm upgrade mimir-limit-optimizer ./helm/mimir-limit-optimizer \
+  --set ui.enabled=true \
+  --set ui.ingress.enabled=true \
+  --set ui.ingress.hosts[0].host=mimir-optimizer.yourdomain.com \
+  --set ui.ingress.className=nginx \
+  --namespace mimir-limit-optimizer
+
+# Access via: https://mimir-optimizer.yourdomain.com
+```
+
+### **🎯 UI Deployment Examples**
+
+#### **Enable UI in Existing Deployment**
+```bash
+# Add UI to existing deployment
+helm upgrade mimir-limit-optimizer ./helm/mimir-limit-optimizer \
+  --set ui.enabled=true \
+  --set ui.port=8082 \
+  --reuse-values
+```
+
+#### **Disable UI for Minimal Deployment**
+```bash
+# Disable UI for resource-constrained environments
+helm upgrade mimir-limit-optimizer ./helm/mimir-limit-optimizer \
+  --set ui.enabled=false \
+  --reuse-values
+```
+
+#### **UI with LoadBalancer (Cloud Environments)**
+```bash
+# Direct LoadBalancer access (AWS/GCP/Azure)
+helm upgrade mimir-limit-optimizer ./helm/mimir-limit-optimizer \
+  --set ui.enabled=true \
+  --set ui.service.type=LoadBalancer \
+  --set ui.service.annotations."service\.beta\.kubernetes\.io/aws-load-balancer-type"=nlb \
+  --reuse-values
+```
+
+### **📊 UI Pages Deep Dive**
+
+#### **1. Dashboard Page**
+- **System Overview**: Tenant count, active limits, system health
+- **Real-time Metrics**: Ingestion rates, query performance, error rates
+- **Resource Utilization**: CPU, memory, storage usage across components
+- **Quick Actions**: Emergency controls, circuit breaker toggle
+
+#### **2. Tenants Page**
+- **Tenant List**: All active tenants with status indicators
+- **Per-tenant Analytics**: Individual limit usage, cost tracking
+- **Tenant Configuration**: View and modify tenant-specific settings
+- **Usage Patterns**: Historical usage trends and predictions
+
+#### **3. Metrics Page**
+- **Live Charts**: Real-time metrics visualization with Recharts
+- **Time Series Analysis**: Historical trends with configurable time ranges
+- **Performance Indicators**: SLA metrics, availability, latency
+- **Custom Queries**: PromQL query interface for advanced users
+
+#### **4. Configuration Page**
+- **Dynamic Limits**: Visual editor for all 30+ Mimir limits
+- **YAML Editor**: Syntax-highlighted configuration editor
+- **Validation**: Real-time configuration validation and error checking  
+- **Templates**: Pre-configured templates for common scenarios
+
+#### **5. Audit Log Page**
+- **Activity History**: Complete log of all system activities
+- **Change Tracking**: Detailed history of limit changes and updates
+- **Search & Filter**: Advanced filtering by tenant, action, time range
+- **Export**: CSV/JSON export for compliance and reporting
+
+#### **6. Diff Viewer Page**
+- **Configuration Changes**: Visual diff of configuration changes
+- **Before/After**: Side-by-side comparison of settings
+- **Impact Analysis**: Predicted impact of configuration changes
+- **Rollback**: Easy rollback to previous configurations
+
+#### **7. Test Tools Page**
+- **Synthetic Data**: Generate test data for validation
+- **Configuration Testing**: Test configurations before applying
+- **Scenario Simulation**: Simulate various load scenarios
+- **Validation Tools**: Verify system behavior under different conditions
+
+### **🔧 Troubleshooting UI**
+
+#### **Common Issues & Solutions**
+
+**UI Not Accessible:**
+```bash
+# Check UI pod status
+kubectl get pods -n mimir-limit-optimizer -l app.kubernetes.io/component=ui
+
+# Check UI service
+kubectl get svc -n mimir-limit-optimizer mimir-limit-optimizer-ui
+
+# Check UI logs
+kubectl logs -n mimir-limit-optimizer deployment/mimir-limit-optimizer -c ui
+```
+
+**Build Issues:**
+```bash
+# Verify UI build assets exist
+kubectl exec -n mimir-limit-optimizer deployment/mimir-limit-optimizer -- ls -la /app/ui/build
+
+# Check Go embed directive
+kubectl exec -n mimir-limit-optimizer deployment/mimir-limit-optimizer -- find /app -name "*.go" -exec grep -l "go:embed" {} \;
+```
+
+**Port Conflicts:**
+```bash
+# Verify no port conflicts (UI: 8082, Health: 8081, Metrics: 8080)
+kubectl exec -n mimir-limit-optimizer deployment/mimir-limit-optimizer -- netstat -tlnp
+```
+
+### **📈 UI Performance & Scaling**
+
+#### **Resource Requirements**
+```yaml
+# Recommended resources with UI enabled
+resources:
+  requests:
+    cpu: 200m      # Increased for UI server
+    memory: 256Mi  # Increased for UI assets
+  limits:
+    cpu: 1000m     # Higher limit for UI + controller
+    memory: 1Gi    # UI assets + React serving
+```
+
+#### **Production Optimizations**
+- **CDN Integration**: Serve static assets via CDN for better performance
+- **Caching**: Redis caching for API responses and static content
+- **Load Balancing**: Multiple UI replicas behind load balancer
+- **Monitoring**: UI-specific metrics and alerting
+
+**Complete UI Documentation:** [Web UI Implementation Guide](WEB_UI_IMPLEMENTATION.md)
 
 ## 🎛️ **Operating Modes: Dry-Run vs Production**
 
@@ -1014,6 +1284,7 @@ docker push your-registry.com/mimir-limit-optimizer:latest
 # Install in dry-run mode for safe observation
 # ✅ Collects metrics and calculates optimal limits
 # ✅ NEW: Dynamic limits system supports 30+ Mimir limits
+# ✅ NEW: Web UI Dashboard enabled for monitoring
 # ❌ NO changes applied to Mimir
 # ❌ Circuit breaker DISABLED for uninterrupted traffic study
 helm install mimir-limit-optimizer ./helm/mimir-limit-optimizer \
@@ -1024,12 +1295,18 @@ helm install mimir-limit-optimizer ./helm/mimir-limit-optimizer \
   --set costControl.enabled=true \
   --set costControl.autoLimitReduction=false \
   --set dynamicLimits.enabled=true \
+  --set ui.enabled=true \
+  --set ui.port=8082 \
   --set-json='dynamicLimits.enabledLimits=["ingestion_rate","ingestion_burst_size","max_global_series_per_user","max_samples_per_query","max_fetched_chunks_per_query"]' \
   --namespace mimir-limit-optimizer \
   --create-namespace
 
 # Monitor the deployment and observe logs
 kubectl logs -f deployment/mimir-limit-optimizer -n mimir-limit-optimizer
+
+# Access the Web UI Dashboard
+kubectl port-forward -n mimir-limit-optimizer svc/mimir-limit-optimizer-ui 8082:8082
+# Open browser: http://localhost:8082
 ```
 
 #### 3. **Verify Dry-Run Results** (Recommended: 24-48 hours)
@@ -1392,12 +1669,29 @@ docker build \
 cat << EOF > custom-values.yaml
 image:
   repository: your-registry.com/mimir-limit-optimizer
-  tag: v0.1.0
+  tag: v3.0.0
 
 controller:
   mode: dry-run
   bufferPercentage: 20
   updateInterval: "5m"
+
+# Web UI Dashboard configuration
+ui:
+  enabled: true
+  port: 8082
+  service:
+    type: ClusterIP
+    port: 8082
+  # Optional: Enable external access
+  ingress:
+    enabled: false
+    className: ""
+    hosts:
+      - host: mimir-optimizer.example.com
+        paths:
+          - path: /
+            pathType: Prefix
 
 mimir:
   namespace: mimir-system
@@ -1409,18 +1703,27 @@ tenantScoping:
     - "test-*"
   includeList: []
 
+# Dynamic Limits (NEW)
+dynamicLimits:
+  enabled: true
+  enabledLimits:
+    - ingestion_rate
+    - max_global_series_per_user
+    - max_samples_per_query
+
 eventSpike:
   enabled: true
   threshold: 2.0
   cooldownPeriod: "30m"
 
+# Updated resource requirements for UI
 resources:
   requests:
-    cpu: 100m
-    memory: 128Mi
+    cpu: 200m
+    memory: 256Mi
   limits:
-    cpu: 500m
-    memory: 512Mi
+    cpu: 1000m
+    memory: 1Gi
 EOF
 
 # Install with custom values
@@ -1428,6 +1731,10 @@ helm install mimir-limit-optimizer ./helm/mimir-limit-optimizer \
   -f custom-values.yaml \
   --namespace mimir-limit-optimizer \
   --create-namespace
+
+# Access the Web UI
+kubectl port-forward -n mimir-limit-optimizer svc/mimir-limit-optimizer-ui 8082:8082
+# Open browser: http://localhost:8082
 ```
 
 ### Upgrade
@@ -1476,6 +1783,11 @@ Create a comprehensive configuration file:
 mode: "dry-run"
 bufferPercentage: 20
 updateInterval: "5m"
+
+# Web UI Dashboard configuration
+ui:
+  enabled: true
+  port: 8082
 
 mimir:
   namespace: "mimir-system"
@@ -1537,6 +1849,34 @@ performance:
     enabled: true
     size: 100
     maxConcurrent: 10
+
+# Dynamic Limits Configuration (NEW)
+dynamicLimits:
+  enabled: true
+  defaultBuffer: 20.0
+  autoDetect: true
+  enabledLimits:
+    - ingestion_rate
+    - ingestion_burst_size
+    - max_global_series_per_user
+    - max_samples_per_query
+    - max_fetched_chunks_per_query
+    - max_series_per_query
+    - max_fetched_series_per_query
+    - max_global_exemplars_per_user
+  
+  # Per-limit customization (optional)
+  limitOverrides:
+    ingestion_rate:
+      defaultValue: 50000.0
+      minValue: 5000.0
+      maxValue: 5000000.0
+      bufferFactor: 25.0
+    max_global_series_per_user:
+      defaultValue: 200000.0
+      minValue: 10000.0
+      maxValue: 50000000.0
+      bufferFactor: 20.0
 
 # Standard Configuration
 tenantScoping:

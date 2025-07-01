@@ -63,6 +63,9 @@ type Config struct {
 	
 	// Dynamic limits configuration
 	DynamicLimits DynamicLimitsConfig `yaml:"dynamicLimits" json:"dynamicLimits"`
+	
+	// Web UI configuration
+	UI UIConfig `yaml:"ui" json:"ui"`
 }
 
 type MimirConfig struct {
@@ -694,6 +697,15 @@ type LimitDefinition struct {
 	Description   string      `yaml:"description"`
 }
 
+// UIConfig holds web UI configuration
+type UIConfig struct {
+	// Enable/disable the web dashboard
+	Enabled bool `yaml:"enabled" json:"enabled"`
+	
+	// Port for the web UI and API server
+	Port int `yaml:"port" json:"port"`
+}
+
 // GetDefaultConfig returns a configuration with sensible defaults
 func GetDefaultConfig() *Config {
 	mode := getEnvOrDefault("MODE", "dry-run")
@@ -887,6 +899,10 @@ func GetDefaultConfig() *Config {
 			DefaultBuffer:   20.0,
 			AutoDetect:      true,
 		},
+		UI: UIConfig{
+			Enabled: true,
+			Port:    8082,
+		},
 	}
 }
 
@@ -975,6 +991,10 @@ func (c *Config) Validate() error {
 
 	if c.TrendAnalysis.Percentile < 0 || c.TrendAnalysis.Percentile > 100 {
 		return fmt.Errorf("trendAnalysis.percentile must be between 0 and 100, got %f", c.TrendAnalysis.Percentile)
+	}
+
+	if c.UI.Enabled && (c.UI.Port < 1024 || c.UI.Port > 65535) {
+		return fmt.Errorf("ui.port must be between 1024 and 65535, got %d", c.UI.Port)
 	}
 
 	return nil

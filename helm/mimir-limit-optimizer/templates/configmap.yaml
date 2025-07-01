@@ -320,4 +320,8 @@ data:
         enabled: {{ .Values.performance.compression.enabled }}
         algorithm: {{ .Values.performance.compression.algorithm | quote }}
         level: {{ .Values.performance.compression.level }}
+
+    ui:
+      enabled: {{ .Values.ui.enabled }}
+      port: {{ .Values.ui.port }}
     {{- end }}

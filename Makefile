@@ -26,16 +26,31 @@ help: ## Show this help message
 	@awk 'BEGIN {FS = ":.*##"; printf "Usage:\n  make \033[36m<target>\033[0m\n"} /^[a-zA-Z_-]+:.*?##/ { printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2 } /^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
 
 ##@ Development
+.PHONY: build-ui
+build-ui: ## Build the React UI
+	@echo "Building UI..."
+	@./scripts/build-ui.sh
+
 .PHONY: build
-build: ## Build the binary
-	@echo "Building $(PROJECT_NAME)..."
+build: build-ui ## Build the binary with UI
+	@echo "Building $(PROJECT_NAME) with embedded UI..."
 	@mkdir -p $(GOBIN)
 	@go build $(LDFLAGS) -o $(GOBIN)/$(PROJECT_NAME) ./main.go
 
 .PHONY: run
-run: ## Run the application locally
-	@echo "Running $(PROJECT_NAME) locally..."
+run: build-ui ## Run the application locally with UI
+	@echo "Running $(PROJECT_NAME) locally with UI..."
 	@go run ./main.go --config=config.yaml --log-level=debug
+
+.PHONY: run-dev
+run-dev: ## Run in development mode (without building UI)
+	@echo "Running $(PROJECT_NAME) in development mode..."
+	@go run ./main.go --config=config.yaml --log-level=debug
+
+.PHONY: ui-dev
+ui-dev: ## Start UI development server
+	@echo "Starting UI development server..."
+	@cd ui && npm start
 
 .PHONY: test
 test: ## Run tests
@@ -67,8 +82,8 @@ mod-tidy: ## Clean up go.mod
 
 ##@ Docker
 .PHONY: docker-build
-docker-build: ## Build Docker image
-	@echo "Building Docker image: $(IMAGE_NAME):$(VERSION)"
+docker-build: build-ui ## Build Docker image with UI
+	@echo "Building Docker image with UI: $(IMAGE_NAME):$(VERSION)"
 	@docker build \
 		--build-arg VERSION=$(VERSION) \
 		--build-arg COMMIT=$(GIT_COMMIT) \
@@ -184,6 +199,7 @@ clean: ## Clean build artifacts
 	@echo "Cleaning build artifacts..."
 	@rm -rf $(GOBIN)
 	@rm -f coverage.out coverage.html
+	@rm -rf ui/build ui/node_modules
 	@docker image prune -f
 
 .PHONY: clean-all
@@ -210,42 +226,4 @@ setup-dev: ## Setup development environment
 
 # Example config file
 .PHONY: example-config
-example-config: ## Generate example configuration file
-	@echo "Generating example configuration file..."
-	@cat > config.yaml << 'EOF'
-mode: "dry-run"
-bufferPercentage: 20
-updateInterval: "5m"
-
-mimir:
-  namespace: "$(MIMIR_NAMESPACE)"
-  configMapName: "mimir-runtime-overrides"
-  triggerRollout: false
-
-tenantScoping:
-  skipList:
-    - "internal-*"
-    - "test-*"
-  includeList: []
-
-metricsDiscovery:
-  enabled: true
-  namespace: "$(MIMIR_NAMESPACE)"
-  serviceLabelSelector: "app.kubernetes.io/name=mimir"
-
-eventSpike:
-  enabled: true
-  threshold: 2.0
-  cooldownPeriod: "30m"
-
-trendAnalysis:
-  analysisWindow: "48h"
-  percentile: 95.0
-  useMovingAverage: true
-
-auditLog:
-  enabled: true
-  storageType: "memory"
-  maxEntries: 1000
-EOF
-	@echo "Example configuration saved to config.yaml" 
+# Fixed Makefile

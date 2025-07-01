@@ -5,8 +5,10 @@ package main
 
 import (
 	"context"
+	"embed"
 	"flag"
 	"fmt"
+	"io/fs"
 	"net/http"
 	"os"
 	"time"
@@ -23,6 +25,7 @@ import (
 	"github.com/AkshayDubey29/mimir-limit-optimizer/internal/config"
 	"github.com/AkshayDubey29/mimir-limit-optimizer/internal/controller"
 	"github.com/AkshayDubey29/mimir-limit-optimizer/internal/metrics"
+	"github.com/AkshayDubey29/mimir-limit-optimizer/pkg/api"
 )
 
 var (
@@ -34,6 +37,9 @@ var (
 	Commit    = "unknown"
 	BuildDate = "unknown"
 )
+
+//go:embed ui/build/*
+var uiAssets embed.FS
 
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
@@ -145,14 +151,43 @@ func main() {
 	}
 
 	// Setup the controller
-	if err = (&controller.MimirLimitController{
+	mimirController := &controller.MimirLimitController{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
 		Config: cfg,
 		Log:    ctrl.Log.WithName("controllers").WithName("MimirLimit"),
-	}).SetupWithManager(mgr); err != nil {
+	}
+	if err = mimirController.SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "MimirLimit")
 		os.Exit(1)
+	}
+
+	// Setup the web UI server if enabled
+	if cfg.UI.Enabled {
+		apiServer := api.NewServer(mimirController, cfg, ctrl.Log.WithName("api"))
+		
+		// Start the UI server in a goroutine
+		go func() {
+			// Setup static UI file server
+			uiBuildFS, err := fs.Sub(uiAssets, "ui/build")
+			if err != nil {
+				setupLog.Error(err, "failed to create UI filesystem")
+				return
+			}
+			
+			// Serve static UI files
+			fileServer := http.FileServer(http.FS(uiBuildFS))
+			http.Handle("/", fileServer)
+			
+			// Start the server on configured port
+			if err := apiServer.Start(cfg.UI.Port); err != nil && err != http.ErrServerClosed {
+				setupLog.Error(err, "failed to start UI server")
+			}
+		}()
+		
+		setupLog.Info("Web UI enabled", "port", cfg.UI.Port)
+	} else {
+		setupLog.Info("Web UI disabled")
 	}
 
 	// Add health checks

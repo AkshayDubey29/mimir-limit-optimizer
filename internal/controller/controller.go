@@ -592,4 +592,9 @@ func (r *MimirLimitController) Shutdown(ctx context.Context) error {
 	}
 	
 	return nil
+}
+
+// GetTenantFilter returns the tenant filter instance
+func (r *MimirLimitController) GetTenantFilter() *TenantFilter {
+	return r.tenantFilter
 } 

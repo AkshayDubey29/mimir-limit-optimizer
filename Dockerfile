@@ -1,4 +1,22 @@
-# Build stage
+# UI Build stage
+FROM node:18-alpine AS ui-builder
+
+# Set working directory for UI build
+WORKDIR /app/ui
+
+# Copy UI package files first for better layer caching
+COPY ui/package*.json ./
+
+# Install UI dependencies
+RUN npm ci --only=production
+
+# Copy UI source code
+COPY ui/ ./
+
+# Build the React application
+RUN npm run build
+
+# Go Build stage
 FROM golang:1.21-alpine AS builder
 
 # Build arguments for metadata
@@ -23,6 +41,9 @@ RUN go mod download && go mod verify
 
 # Copy source code
 COPY . .
+
+# Copy built UI assets from ui-builder stage
+COPY --from=ui-builder /app/ui/build ./ui/build
 
 # Build the application with version information
 RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH:-amd64} go build \
@@ -72,8 +93,8 @@ ENV TZ=UTC
 ENV GOGC=50
 ENV GOMAXPROCS=2
 
-# Expose metrics port (default Kubernetes controller port)
-EXPOSE 8080
+# Expose metrics port (default Kubernetes controller port) and UI port
+EXPOSE 8080 8082
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
