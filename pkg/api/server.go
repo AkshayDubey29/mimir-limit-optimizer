@@ -2,8 +2,11 @@ package api
 
 import (
 	"context"
+	"embed"
 	"encoding/json"
 	"fmt"
+	"io"
+	"io/fs"
 	"net/http"
 	"time"
 
@@ -22,15 +25,17 @@ type Server struct {
 	log        logr.Logger
 	router     *mux.Router
 	httpServer *http.Server
+	uiAssets   embed.FS
 }
 
 // NewServer creates a new API server instance
-func NewServer(controller *controller.MimirLimitController, cfg *config.Config, log logr.Logger) *Server {
+func NewServer(controller *controller.MimirLimitController, cfg *config.Config, log logr.Logger, uiAssets embed.FS) *Server {
 	s := &Server{
 		controller: controller,
 		config:     cfg,
 		log:        log,
 		router:     mux.NewRouter(),
+		uiAssets:   uiAssets,
 	}
 	
 	s.setupRoutes()
@@ -69,6 +74,78 @@ func (s *Server) setupRoutes() {
 	
 	// Prometheus metrics endpoint
 	s.router.Handle("/metrics", promhttp.Handler())
+	
+	// Setup UI static file serving - embed.FS is always valid, so check if we can access the UI directory
+	if _, err := s.uiAssets.Open("ui"); err == nil {
+		s.setupUIRoutes()
+	}
+}
+
+// setupUIRoutes configures UI static file serving
+func (s *Server) setupUIRoutes() {
+	// Setup static UI file server
+	uiBuildFS, err := fs.Sub(s.uiAssets, "ui/build")
+	if err != nil {
+		s.log.Error(err, "failed to create UI filesystem")
+		return
+	}
+	
+	// Serve static files (CSS, JS, images, etc.)
+	staticFS, err := fs.Sub(uiBuildFS, "static")
+	if err == nil {
+		s.router.PathPrefix("/static/").Handler(http.StripPrefix("/static/", http.FileServer(http.FS(staticFS))))
+	}
+	
+	// Serve favicon and other root assets
+	s.router.HandleFunc("/favicon.ico", func(w http.ResponseWriter, r *http.Request) {
+		if file, err := uiBuildFS.Open("favicon.ico"); err == nil {
+			defer file.Close()
+			http.ServeContent(w, r, "favicon.ico", time.Time{}, file.(io.ReadSeeker))
+		} else {
+			http.NotFound(w, r)
+		}
+	})
+	
+	// Serve the React app for all non-API routes (SPA fallback)
+	s.router.PathPrefix("/").HandlerFunc(s.serveReactApp(uiBuildFS))
+}
+
+// serveReactApp serves the React application for SPA routing
+func (s *Server) serveReactApp(uiBuildFS fs.FS) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// Try to serve the requested file
+		filePath := r.URL.Path
+		if filePath == "/" {
+			filePath = "/index.html"
+		}
+		
+		// Remove leading slash for fs.FS
+		if len(filePath) > 0 && filePath[0] == '/' {
+			filePath = filePath[1:]
+		}
+		
+		// Check if file exists
+		if file, err := uiBuildFS.Open(filePath); err == nil {
+			file.Close()
+			// File exists, serve it
+			http.FileServer(http.FS(uiBuildFS)).ServeHTTP(w, r)
+			return
+		}
+		
+		// File doesn't exist, serve index.html for SPA routing
+		indexFile, err := uiBuildFS.Open("index.html")
+		if err != nil {
+			http.NotFound(w, r)
+			return
+		}
+		defer indexFile.Close()
+		
+		// Set content type for HTML
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		
+		// Copy index.html content to response
+		http.ServeContent(w, r, "index.html", time.Time{}, indexFile.(io.ReadSeeker))
+	}
 }
 
 // Start starts the HTTP server
