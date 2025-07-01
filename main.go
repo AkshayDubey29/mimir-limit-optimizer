@@ -6,6 +6,7 @@ package main
 import (
 	"context"
 	"embed"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"io/fs"
@@ -297,15 +298,52 @@ func runStandalone(cfg *config.Config) error {
 		"count", len(tenants), 
 		"tenants", tenants)
 	
-	// In standalone mode, we just demonstrate tenant discovery and exit
-	// This shows that the fallback system works
-	setupLog.Info("Standalone mode demonstration complete - tenant discovery successful")
-	
-	// In a real scenario, you might want to:
-	// 1. Collect synthetic metrics
-	// 2. Calculate recommended limits
-	// 3. Output recommendations to a file
-	// 4. Set up a web server to serve the recommendations
+	// Setup the web UI server if enabled in standalone mode
+	if cfg.UI.Enabled {
+		setupLog.Info("Starting UI server in standalone mode", "port", cfg.UI.Port)
+		
+		// Setup static UI file server
+		uiBuildFS, err := fs.Sub(uiAssets, "ui/build")
+		if err != nil {
+			return fmt.Errorf("failed to create UI filesystem: %w", err)
+		}
+		
+		// Create a simple HTTP server for standalone mode
+		mux := http.NewServeMux()
+		
+		// Serve static UI files
+		fileServer := http.FileServer(http.FS(uiBuildFS))
+		mux.Handle("/", fileServer)
+		
+		// Add a simple API endpoint for basic functionality
+		mux.HandleFunc("/api/tenants", func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			tenantsJSON, _ := json.Marshal(map[string]interface{}{
+				"tenants": tenants,
+				"mode": "standalone",
+				"message": "Running in standalone mode with synthetic tenants",
+			})
+			w.Write(tenantsJSON)
+		})
+		
+		// Start the server
+		server := &http.Server{
+			Addr:         fmt.Sprintf(":%d", cfg.UI.Port),
+			Handler:      mux,
+			ReadTimeout:  15 * time.Second,
+			WriteTimeout: 15 * time.Second,
+		}
+		
+		setupLog.Info("Web UI enabled in standalone mode", "port", cfg.UI.Port, "url", fmt.Sprintf("http://localhost:%d", cfg.UI.Port))
+		
+		// Start server and block
+		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			return fmt.Errorf("failed to start UI server: %w", err)
+		}
+	} else {
+		setupLog.Info("Standalone mode demonstration complete - tenant discovery successful")
+		setupLog.Info("Web UI disabled - exiting")
+	}
 	
 	return nil
 }
