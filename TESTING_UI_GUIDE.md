@@ -109,7 +109,29 @@ curl -s http://localhost:8082/api/tenants
 curl -s http://localhost:8080/metrics | grep mimir_limit_optimizer
 ```
 
-### **6. Expected Log Messages**
+### **6. Ingress Verification**
+
+If ingress is enabled, verify it's working correctly:
+
+```bash
+# Check ingress status
+kubectl get ingress -n mimir-limit-optimizer
+
+# Describe ingress for details
+kubectl describe ingress -n mimir-limit-optimizer
+
+# Verify ingress endpoints
+kubectl get endpoints -n mimir-limit-optimizer
+
+# Test ingress access (if DNS is configured)
+curl -I https://your-domain.com/
+
+# Test with local hosts file (for testing)
+echo "INGRESS_IP your-domain.com" >> /etc/hosts  # Replace INGRESS_IP
+curl -I https://your-domain.com/
+```
+
+### **7. Expected Log Messages**
 
 When UI is **enabled**, you should see:
 ```json
@@ -122,7 +144,7 @@ When UI is **disabled**:
 {"level":"info","ts":"2025-07-01T...","logger":"setup","msg":"Web UI disabled"}
 ```
 
-### **7. Troubleshooting Common Issues**
+### **8. Troubleshooting Common Issues**
 
 #### **Issue: Port Forward Connection Refused**
 ```bash
@@ -152,7 +174,7 @@ kubectl get clusterrole mimir-limit-optimizer -o yaml
 kubectl get clusterrolebinding mimir-limit-optimizer -o yaml
 ```
 
-### **8. Advanced Testing Scenarios**
+### **9. Advanced Testing Scenarios**
 
 #### **Test with Different Configurations**
 ```bash
@@ -180,14 +202,29 @@ kubectl get svc -n mimir-limit-optimizer mimir-limit-optimizer
 
 #### **Test with Ingress**
 ```bash
-# Deploy with Ingress enabled
+# Deploy with Ingress enabled (basic)
 helm upgrade mimir-limit-optimizer ./helm/mimir-limit-optimizer \
   --set ui.ingress.enabled=true \
   --set ui.ingress.hosts[0].host=mimir-optimizer.local \
+  --set ui.ingress.hosts[0].paths[0].path=/ \
+  --set ui.ingress.hosts[0].paths[0].pathType=Prefix \
   --reuse-values
+
+# Deploy with NGINX ingress and SSL
+helm upgrade mimir-limit-optimizer ./helm/mimir-limit-optimizer \
+  --set ui.ingress.enabled=true \
+  --set ui.ingress.className=nginx \
+  --set ui.ingress.hosts[0].host=mimir-optimizer.your-domain.com \
+  --set ui.ingress.hosts[0].paths[0].path=/ \
+  --set ui.ingress.hosts[0].paths[0].pathType=Prefix \
+  --set ui.ingress.annotations."cert-manager\.io/cluster-issuer"=letsencrypt-prod \
+  --reuse-values
+
+# Test ingress (after DNS is configured)
+curl -I https://mimir-optimizer.your-domain.com/
 ```
 
-### **9. Cleanup**
+### **10. Cleanup**
 
 ```bash
 # Stop port forwarding (Ctrl+C)
