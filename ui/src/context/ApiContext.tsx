@@ -73,6 +73,9 @@ export interface AuditEntry {
 }
 
 interface ApiContextType {
+  // Generic API request method
+  apiRequest: (endpoint: string, options?: Record<string, any>) => Promise<any>;
+  
   // System
   getStatus: () => Promise<SystemStatus>;
   getConfig: () => Promise<any>;
@@ -186,7 +189,14 @@ export const ApiProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     [apiCall]
   );
 
+  // Generic API request method
+  const apiRequest = useCallback((endpoint: string, options?: Record<string, any>) => 
+    apiCall(() => axios.get(`${API_BASE}${endpoint}`, options).then(res => res.data)), 
+    [apiCall]
+  );
+
   const value: ApiContextType = {
+    apiRequest,
     getStatus,
     getConfig,
     updateConfig,

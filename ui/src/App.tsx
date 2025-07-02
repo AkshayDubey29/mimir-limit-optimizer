@@ -6,6 +6,7 @@ import './App.css';
 import Sidebar from './components/layout/Sidebar';
 import Header from './components/layout/Header';
 import Dashboard from './pages/Dashboard';
+import HealthDashboard from './pages/HealthDashboard';
 import Tenants from './pages/Tenants';
 import TenantDetail from './pages/TenantDetail';
 import Config from './pages/Config';
@@ -53,6 +54,7 @@ function App() {
                   <Routes>
                     <Route path="/" element={<Dashboard />} />
                     <Route path="/dashboard" element={<Dashboard />} />
+                    <Route path="/health" element={<HealthDashboard />} />
                     <Route path="/tenants" element={<Tenants />} />
                     <Route path="/tenants/:tenantId" element={<TenantDetail />} />
                     <Route path="/config" element={<Config />} />

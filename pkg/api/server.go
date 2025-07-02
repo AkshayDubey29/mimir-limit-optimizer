@@ -10,8 +10,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/gorilla/mux"
 	"github.com/go-logr/logr"
+	"github.com/gorilla/mux"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/AkshayDubey29/mimir-limit-optimizer/internal/config"
@@ -37,7 +37,7 @@ func NewServer(controller *controller.MimirLimitController, cfg *config.Config, 
 		router:     mux.NewRouter(),
 		uiAssets:   uiAssets,
 	}
-	
+
 	s.setupRoutes()
 	return s
 }
@@ -47,34 +47,48 @@ func (s *Server) setupRoutes() {
 	// Add middleware
 	s.router.Use(s.loggingMiddleware)
 	s.router.Use(s.corsMiddleware)
-	
+
 	// API routes
 	api := s.router.PathPrefix("/api").Subrouter()
-	
+
 	// System endpoints
 	api.HandleFunc("/status", s.handleStatus).Methods("GET")
 	api.HandleFunc("/config", s.handleConfig).Methods("GET", "POST")
 	api.HandleFunc("/metrics", s.handleMetrics).Methods("GET")
-	
+
 	// Tenant endpoints
 	api.HandleFunc("/tenants", s.handleTenants).Methods("GET")
 	api.HandleFunc("/tenants/{tenant_id}", s.handleTenantDetail).Methods("GET")
-	
+
 	// Analysis endpoints
 	api.HandleFunc("/diff", s.handleDiff).Methods("GET")
 	api.HandleFunc("/audit", s.handleAudit).Methods("GET")
-	
+
 	// Test endpoints
 	api.HandleFunc("/test/spike", s.handleTestSpike).Methods("POST")
 	api.HandleFunc("/test/alert", s.handleTestAlert).Methods("POST")
 	api.HandleFunc("/test/reconcile", s.handleTestReconcile).Methods("POST")
-	
+
+	// Health monitoring endpoints - NEW
+	api.HandleFunc("/health/infrastructure", s.handleInfrastructureHealth).Methods("GET")
+	api.HandleFunc("/health/metrics", s.handleHealthMetrics).Methods("GET")
+	api.HandleFunc("/health/alerts", s.handleHealthAlerts).Methods("GET")
+	api.HandleFunc("/health/recommendations", s.handleHealthRecommendations).Methods("GET")
+	api.HandleFunc("/health/resources", s.handleResourceList).Methods("GET")
+	api.HandleFunc("/health/resources/{kind}/{name}", s.handleResourceHealth).Methods("GET")
+
+	// Autonomous Infrastructure AI endpoints - NEW
+	api.HandleFunc("/infrastructure/scan", s.handleInfrastructureScan).Methods("GET")
+	api.HandleFunc("/infrastructure/components", s.handleInfrastructureComponents).Methods("GET")
+	api.HandleFunc("/infrastructure/tenants", s.handleInfrastructureTenants).Methods("GET")
+	api.HandleFunc("/infrastructure/analytics", s.handleInfrastructureAnalytics).Methods("GET")
+
 	// Health check
 	s.router.HandleFunc("/health", s.handleHealthCheck).Methods("GET")
-	
+
 	// Prometheus metrics endpoint
 	s.router.Handle("/metrics", promhttp.Handler())
-	
+
 	// Setup UI static file serving - embed.FS is always valid, so check if we can access the UI directory
 	if _, err := s.uiAssets.Open("ui"); err == nil {
 		s.setupUIRoutes()
@@ -89,13 +103,13 @@ func (s *Server) setupUIRoutes() {
 		s.log.Error(err, "failed to create UI filesystem")
 		return
 	}
-	
+
 	// Serve static files (CSS, JS, images, etc.)
 	staticFS, err := fs.Sub(uiBuildFS, "static")
 	if err == nil {
 		s.router.PathPrefix("/static/").Handler(http.StripPrefix("/static/", http.FileServer(http.FS(staticFS))))
 	}
-	
+
 	// Serve favicon and other root assets
 	s.router.HandleFunc("/favicon.ico", func(w http.ResponseWriter, r *http.Request) {
 		if file, err := uiBuildFS.Open("favicon.ico"); err == nil {
@@ -105,7 +119,7 @@ func (s *Server) setupUIRoutes() {
 			http.NotFound(w, r)
 		}
 	})
-	
+
 	// Serve the React app for all non-API routes (SPA fallback)
 	s.router.PathPrefix("/").HandlerFunc(s.serveReactApp(uiBuildFS))
 }
@@ -118,12 +132,12 @@ func (s *Server) serveReactApp(uiBuildFS fs.FS) http.HandlerFunc {
 		if filePath == "/" {
 			filePath = "/index.html"
 		}
-		
+
 		// Remove leading slash for fs.FS
 		if len(filePath) > 0 && filePath[0] == '/' {
 			filePath = filePath[1:]
 		}
-		
+
 		// Check if file exists
 		if file, err := uiBuildFS.Open(filePath); err == nil {
 			file.Close()
@@ -131,7 +145,7 @@ func (s *Server) serveReactApp(uiBuildFS fs.FS) http.HandlerFunc {
 			http.FileServer(http.FS(uiBuildFS)).ServeHTTP(w, r)
 			return
 		}
-		
+
 		// File doesn't exist, serve index.html for SPA routing
 		indexFile, err := uiBuildFS.Open("index.html")
 		if err != nil {
@@ -139,10 +153,10 @@ func (s *Server) serveReactApp(uiBuildFS fs.FS) http.HandlerFunc {
 			return
 		}
 		defer indexFile.Close()
-		
+
 		// Set content type for HTML
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		
+
 		// Copy index.html content to response
 		http.ServeContent(w, r, "index.html", time.Time{}, indexFile.(io.ReadSeeker))
 	}
@@ -158,7 +172,7 @@ func (s *Server) Start(port int) error {
 		WriteTimeout: 30 * time.Second,
 		IdleTimeout:  120 * time.Second,
 	}
-	
+
 	s.log.Info("starting API server", "port", port)
 	return s.httpServer.ListenAndServe()
 }
@@ -177,7 +191,7 @@ func (s *Server) loggingMiddleware(next http.Handler) http.Handler {
 		start := time.Now()
 		next.ServeHTTP(w, r)
 		duration := time.Since(start)
-		
+
 		s.log.V(1).Info("API request",
 			"method", r.Method,
 			"path", r.URL.Path,
@@ -192,12 +206,12 @@ func (s *Server) corsMiddleware(next http.Handler) http.Handler {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
-		
+
 		if r.Method == "OPTIONS" {
 			w.WriteHeader(http.StatusOK)
 			return
 		}
-		
+
 		next.ServeHTTP(w, r)
 	})
 }
@@ -222,4 +236,4 @@ func (s *Server) writeJSON(w http.ResponseWriter, data interface{}) {
 		s.log.Error(err, "failed to encode JSON response")
 		s.writeError(w, http.StatusInternalServerError, "Failed to encode response")
 	}
-} 
+}

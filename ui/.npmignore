@@ -1,0 +1,130 @@
+# =============================================================================
+# NPM IGNORE FILE - Mimir Limit Optimizer UI
+# =============================================================================
+# This file specifies which files/directories should be excluded from npm
+# operations to improve performance and reduce package size
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# BUILD OUTPUT & DEPENDENCIES
+# -----------------------------------------------------------------------------
+# Exclude build artifacts and dependencies that will be regenerated
+node_modules/
+build/
+dist/
+*.tgz
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.npm/
+.yarn/
+
+# -----------------------------------------------------------------------------
+# DEVELOPMENT & SOURCE FILES  
+# -----------------------------------------------------------------------------
+# Exclude development-only files and source maps
+src/
+public/
+*.map
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# -----------------------------------------------------------------------------
+# TESTING & COVERAGE
+# -----------------------------------------------------------------------------
+# Exclude test files and coverage reports
+__tests__/
+**/*.test.ts
+**/*.test.tsx
+**/*.test.js
+**/*.test.jsx
+**/*.spec.ts
+**/*.spec.tsx
+**/*.spec.js
+**/*.spec.jsx
+coverage/
+.nyc_output/
+jest.config.*
+setupTests.*
+
+# -----------------------------------------------------------------------------
+# DEVELOPMENT TOOLS & CONFIG
+# -----------------------------------------------------------------------------
+# Exclude development configuration and tool files
+.eslintrc*
+.prettierrc*
+.editorconfig
+.gitignore
+.gitattributes
+tsconfig.json
+webpack.config.*
+vite.config.*
+rollup.config.*
+babel.config.*
+postcss.config.*
+tailwind.config.*
+
+# -----------------------------------------------------------------------------
+# IDE & EDITOR FILES
+# -----------------------------------------------------------------------------
+# Exclude IDE and editor specific files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# -----------------------------------------------------------------------------
+# LOGS & TEMPORARY FILES
+# -----------------------------------------------------------------------------
+# Exclude log files and temporary data
+logs/
+*.log
+*.pid
+*.seed
+*.pid.lock
+.tmp/
+.temp/
+.cache/
+
+# -----------------------------------------------------------------------------
+# DOCUMENTATION & ASSETS
+# -----------------------------------------------------------------------------
+# Exclude development documentation and design assets
+README.md
+CHANGELOG.md
+docs/
+screenshots/
+*.psd
+*.ai
+*.sketch
+
+# -----------------------------------------------------------------------------
+# VERSION CONTROL
+# -----------------------------------------------------------------------------
+# Exclude version control files
+.git/
+.gitignore
+.gitattributes
+.github/
+
+# -----------------------------------------------------------------------------
+# PACKAGE MANAGER LOCK FILES
+# -----------------------------------------------------------------------------
+# Exclude lock files (they will be regenerated)
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# -----------------------------------------------------------------------------
+# MISC FILES
+# -----------------------------------------------------------------------------
+# Other files that shouldn't be in npm packages
+Dockerfile*
+docker-compose.*
+.dockerignore
+.npmignore
+Makefile 

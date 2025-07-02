@@ -12,6 +12,7 @@ const Sidebar: React.FC<SidebarProps> = ({ open, onToggle }) => {
 
   const navigation = [
     { name: 'Dashboard', href: '/dashboard', icon: '📊' },
+    { name: 'Health Monitor', href: '/health', icon: '💚' },
     { name: 'Tenants', href: '/tenants', icon: '👥' },
     { name: 'Configuration', href: '/config', icon: '⚙️' },
     { name: 'Audit Log', href: '/audit', icon: '📝' },
