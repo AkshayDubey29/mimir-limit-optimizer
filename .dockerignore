@@ -1,82 +1,244 @@
-# Git files
-.git
+# =============================================================================
+# DOCKER IGNORE FILE - Mimir Limit Optimizer
+# =============================================================================
+# This file specifies which files/directories should be excluded from Docker
+# build context to improve build performance and reduce image size
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# DEPENDENCIES & BUILD ARTIFACTS
+# -----------------------------------------------------------------------------
+# Exclude all dependencies and build outputs (will be installed/built in container)
+**/node_modules/
+**/build/
+**/dist/
+**/*.tgz
+**/bin/
+**/target/
+**/.next/
+**/.nuxt/
+**/out/
+
+# -----------------------------------------------------------------------------
+# PACKAGE MANAGER FILES
+# -----------------------------------------------------------------------------
+# Keep package-lock.json for reproducible builds, exclude others
+# **/package-lock.json (needed for npm ci)
+**/yarn.lock
+**/pnpm-lock.yaml
+**/.npm/
+**/.yarn/
+**/.pnpm/
+**/npm-debug.log*
+**/yarn-debug.log*
+**/yarn-error.log*
+**/lerna-debug.log*
+
+# -----------------------------------------------------------------------------
+# VERSION CONTROL
+# -----------------------------------------------------------------------------
+# Exclude Git and version control files
+.git/
 .gitignore
 .gitattributes
+.github/
+.gitmodules
+**/.git/
 
-# Documentation
-*.md
-docs/
-examples/
-
-# Development files
+# -----------------------------------------------------------------------------
+# IDE & EDITOR FILES
+# -----------------------------------------------------------------------------
+# Exclude IDE and editor specific files and directories
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
-
-# Test files
-*_test.go
-testdata/
-coverage.out
-test-results/
-
-# Build artifacts
-bin/
-dist/
-*.o
-*.a
-*.so
-
-# IDE files
 .DS_Store
+.AppleDouble
+.LSOverride
 Thumbs.db
+Desktop.ini
 
-# CI/CD files
-.github/
-.travis.yml
-.circleci/
-Jenkinsfile
+# -----------------------------------------------------------------------------
+# LOGS & TEMPORARY FILES
+# -----------------------------------------------------------------------------
+# Exclude all log files and temporary data
+logs/
+**/*.log
+**/*.pid
+**/*.seed
+**/*.pid.lock
+**/tmp/
+**/temp/
+**/.tmp/
+**/.temp/
+**/.cache/
+**/coverage/
+**/.nyc_output/
 
-# Dependencies that should be downloaded fresh
-vendor/ 
+# -----------------------------------------------------------------------------
+# ENVIRONMENT & CONFIG FILES
+# -----------------------------------------------------------------------------
+# Exclude environment files and sensitive configuration
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+**/.env*
+**/secrets/
+**/config/local.*
 
-# Local config files
-*.local
-.env*
-config.local.yaml
+# -----------------------------------------------------------------------------
+# TESTING & DEVELOPMENT
+# -----------------------------------------------------------------------------
+# Exclude test files, coverage reports, and development tools
+**/__tests__/
+**/tests/
+**/*.test.*
+**/*.spec.*
+**/jest.config.*
+**/setupTests.*
+**/cypress/
+**/e2e/
+**/.eslintrc*
+**/.prettierrc*
+**/babel.config.*
+**/webpack.config.*
+**/vite.config.*
+**/rollup.config.*
 
-# Temporary files
-tmp/
-temp/
-*.tmp
-*.log
+# -----------------------------------------------------------------------------
+# DOCUMENTATION & ASSETS
+# -----------------------------------------------------------------------------
+# Exclude documentation and development assets
+README.md
+CHANGELOG.md
+CONTRIBUTING.md
+LICENSE
+docs/
+screenshots/
+examples/
+**/docs/
+**/*.md
+*.psd
+*.ai
+*.sketch
+*.fig
 
-# Kubernetes manifests (not needed in container)
-k8s/
-manifests/
-deploy/
-
-# Helm charts (not needed in container)
-helm/
-charts/
-
-# Docker files (avoid recursive inclusion)
-Dockerfile*
-docker-compose*.yml
-
-# License and contributing files
-LICENSE*
-CONTRIBUTING*
-MAINTAINERS*
-CODE_OF_CONDUCT*
-SECURITY*
-
-# Makefile and scripts
+# -----------------------------------------------------------------------------
+# BUILD TOOLS & SCRIPTS
+# -----------------------------------------------------------------------------
+# Exclude build tools and development scripts
 Makefile
-scripts/
-*.sh
+docker-compose.yml
+docker-compose.yaml
+docker-compose.*.yml
+docker-compose.*.yaml
+Dockerfile.dev
+Dockerfile.test
+**/scripts/dev*
+**/scripts/test*
 
-# Coverage reports
-*.out
-*.html 
+# -----------------------------------------------------------------------------
+# HELM & KUBERNETES
+# -----------------------------------------------------------------------------
+# Exclude Helm charts and Kubernetes manifests (not needed in runtime image)
+helm/
+k8s/
+kubernetes/
+manifests/
+charts/
+**/helm/
+**/k8s/
+**/kubernetes/
+**/*.yaml
+**/*.yml
+
+# -----------------------------------------------------------------------------
+# GO SPECIFIC
+# -----------------------------------------------------------------------------
+# Keep Go source files for Docker build
+# **/*.go (needed for Docker build)
+# **/go.mod (needed for Docker build)
+# **/go.sum (needed for Docker build)
+**/vendor/
+**/.mod/
+**/.sum/
+
+# -----------------------------------------------------------------------------
+# TYPESCRIPT/JAVASCRIPT SOURCE
+# -----------------------------------------------------------------------------
+# Keep TypeScript source files for UI build
+# **/src/ (needed for UI build)
+# **/public/ (needed for UI build) 
+# **/tsconfig.json (needed for UI build)
+**/jsconfig.json
+# **/*.ts (needed for UI build)
+# **/*.tsx (needed for UI build)
+!**/dist/**/*.js
+!**/build/**/*.js
+
+# -----------------------------------------------------------------------------
+# IMAGE & CONTAINER FILES
+# -----------------------------------------------------------------------------
+# Exclude other Docker and container related files
+.dockerignore
+**/Dockerfile*
+**/.dockerignore
+*.tar
+*.zip
+*.gz
+
+# -----------------------------------------------------------------------------
+# MONITORING & PROFILING
+# -----------------------------------------------------------------------------
+# Exclude monitoring and profiling data
+**/profiling/
+**/monitoring/
+**/*.prof
+**/*.trace
+**/*.mem
+
+# -----------------------------------------------------------------------------
+# BACKUP & TEMPORARY FILES
+# -----------------------------------------------------------------------------
+# Exclude backup and temporary files
+**/*.bak
+**/*.backup
+**/*.old
+**/*.orig
+**/*.rej
+**/*~
+**/#*#
+**/.#*
+
+# -----------------------------------------------------------------------------
+# SPECIFIC EXCLUSIONS
+# -----------------------------------------------------------------------------
+# Exclude specific files that are not needed in production
+
+# Configuration files that should be mounted as volumes
+config.yaml
+debug-config.yaml
+prod-values.yaml
+
+# Development scripts
+scripts/
+**/scripts/
+
+# UI source files needed for Docker build
+# ui/src/ (needed for UI build)
+# ui/public/ (needed for UI build)
+# ui/tsconfig.json (needed for UI build)
+# ui/tailwind.config.js (needed for UI build)
+
+# Go source files (needed for Docker build)
+# internal/ (needed for Docker build)
+# pkg/ (needed for Docker build)
+# cmd/ (needed for Docker build)
+# main.go (needed for Docker build)
+
+# Keep only essential files for runtime
+# The Dockerfile should explicitly COPY what's needed 

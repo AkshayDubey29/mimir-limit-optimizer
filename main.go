@@ -1,4 +1,3 @@
-
 // Mimir Limit Optimizer v1.0.0
 // Enterprise-grade guard rail system for Grafana Mimir
 package main
@@ -6,10 +5,8 @@ package main
 import (
 	"context"
 	"embed"
-	"encoding/json"
 	"flag"
 	"fmt"
-	"io/fs"
 	"net/http"
 	"os"
 	"time"
@@ -23,6 +20,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
+	"github.com/AkshayDubey29/mimir-limit-optimizer/internal/collector"
 	"github.com/AkshayDubey29/mimir-limit-optimizer/internal/config"
 	"github.com/AkshayDubey29/mimir-limit-optimizer/internal/controller"
 	"github.com/AkshayDubey29/mimir-limit-optimizer/internal/metrics"
@@ -30,9 +28,9 @@ import (
 )
 
 var (
-	scheme    = runtime.NewScheme()
-	setupLog  = ctrl.Log.WithName("setup")
-	
+	scheme   = runtime.NewScheme()
+	setupLog = ctrl.Log.WithName("setup")
+
 	// Build-time variables (injected by ldflags during build)
 	Version   = "dev"
 	Commit    = "unknown"
@@ -114,8 +112,8 @@ func main() {
 		os.Exit(1)
 	}
 
-	setupLog.Info("Starting mimir-limit-optimizer", 
-		"version", getBuildInfo(), 
+	setupLog.Info("Starting mimir-limit-optimizer",
+		"version", getBuildInfo(),
 		"mode", cfg.Mode,
 		"updateInterval", cfg.UpdateInterval)
 
@@ -166,7 +164,7 @@ func main() {
 	// Setup the web UI server if enabled
 	if cfg.UI.Enabled {
 		apiServer := api.NewServer(mimirController, cfg, ctrl.Log.WithName("api"), uiAssets)
-		
+
 		// Start the UI server in a goroutine
 		go func() {
 			// Start the server on configured port
@@ -174,7 +172,7 @@ func main() {
 				setupLog.Error(err, "failed to start UI server")
 			}
 		}()
-		
+
 		setupLog.Info("Web UI enabled", "port", cfg.UI.Port)
 	} else {
 		setupLog.Info("Web UI disabled")
@@ -207,11 +205,11 @@ func performHealthCheck(probeAddr string) error {
 	if probeAddr[0] == ':' {
 		probeAddr = "localhost" + probeAddr
 	}
-	
+
 	client := &http.Client{
 		Timeout: 5 * time.Second,
 	}
-	
+
 	resp, err := client.Get(fmt.Sprintf("http://%s/healthz", probeAddr))
 	if err != nil {
 		return fmt.Errorf("failed to connect to health endpoint: %w", err)
@@ -222,11 +220,11 @@ func performHealthCheck(probeAddr string) error {
 			fmt.Printf("Warning: failed to close response body: %v\n", closeErr)
 		}
 	}()
-	
+
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("health check returned status %d", resp.StatusCode)
 	}
-	
+
 	return nil
 }
 
@@ -236,17 +234,17 @@ func canRunStandalone(cfg *config.Config) bool {
 	// 1. We have fallback tenants configured OR synthetic mode is enabled
 	// 2. AND we're in dry-run mode (not applying changes to Kubernetes)
 	// 3. AND we're not using Kubernetes service discovery
-	
+
 	hasFallbackTenants := len(cfg.MetricsDiscovery.TenantDiscovery.FallbackTenants) > 0
 	hasSyntheticMode := cfg.MetricsDiscovery.TenantDiscovery.EnableSynthetic || cfg.Synthetic.Enabled
 	isDryRun := cfg.Mode == "dry-run"
 	noKubernetesDiscovery := !cfg.MetricsDiscovery.Enabled
-	
+
 	// We can run standalone if we have tenant sources that don't require Kubernetes
 	// and we're not applying changes to Kubernetes
 	// Note: Having a metrics endpoint is fine - we can still make HTTP calls without Kubernetes
 	canRunWithoutK8s := (hasFallbackTenants || hasSyntheticMode) && isDryRun && noKubernetesDiscovery
-	
+
 	return canRunWithoutK8s
 }
 
@@ -258,12 +256,12 @@ func runStandalone(cfg *config.Config) error {
 		"metricsTenantID", cfg.MetricsDiscovery.TenantDiscovery.MetricsTenantID,
 		"metricsEndpoint", cfg.MetricsEndpoint,
 		"mode", cfg.Mode)
-	
+
 	// Initialize metrics
 	if err := metrics.RegisterMetrics(); err != nil {
 		return fmt.Errorf("unable to register metrics: %w", err)
 	}
-	
+
 	// Test metrics connectivity if endpoint is configured
 	if cfg.MetricsEndpoint != "" {
 		setupLog.Info("Testing metrics connectivity with tenant headers")
@@ -273,75 +271,53 @@ func runStandalone(cfg *config.Config) error {
 			setupLog.Info("Metrics connectivity test successful")
 		}
 	}
-	
+
 	// Create a synthetic collector for tenant discovery
 	collector := createStandaloneCollector(cfg)
-	
+
 	// Discover tenants
 	tenants, err := collector.GetTenantList(context.TODO())
 	if err != nil {
 		return fmt.Errorf("failed to discover tenants: %w", err)
 	}
-	
-	setupLog.Info("Discovered tenants in standalone mode", 
-		"count", len(tenants), 
+
+	setupLog.Info("Discovered tenants in standalone mode",
+		"count", len(tenants),
 		"tenants", tenants)
-	
+
 	// Setup the web UI server if enabled in standalone mode
 	if cfg.UI.Enabled {
 		setupLog.Info("Starting UI server in standalone mode", "port", cfg.UI.Port)
-		
-		// Setup static UI file server
-		uiBuildFS, err := fs.Sub(uiAssets, "ui/build")
-		if err != nil {
-			return fmt.Errorf("failed to create UI filesystem: %w", err)
+
+		// Create a mock controller for standalone mode
+		mockController := &controller.MimirLimitController{
+			Client:    nil, // No Kubernetes client in standalone mode
+			Scheme:    nil,
+			Config:    cfg,
+			Log:       setupLog.WithName("mock-controller"),
+			Collector: collector,
 		}
-		
-		// Create a simple HTTP server for standalone mode
-		mux := http.NewServeMux()
-		
-		// Serve static UI files
-		fileServer := http.FileServer(http.FS(uiBuildFS))
-		mux.Handle("/", fileServer)
-		
-		// Add a simple API endpoint for basic functionality
-		mux.HandleFunc("/api/tenants", func(w http.ResponseWriter, r *http.Request) {
-			w.Header().Set("Content-Type", "application/json")
-			tenantsJSON, _ := json.Marshal(map[string]interface{}{
-				"tenants": tenants,
-				"mode": "standalone",
-				"message": "Running in standalone mode with synthetic tenants",
-			})
-			if _, err := w.Write(tenantsJSON); err != nil {
-				setupLog.Error(err, "failed to write tenants JSON response")
-			}
-		})
-		
-		// Start the server
-		server := &http.Server{
-			Addr:         fmt.Sprintf(":%d", cfg.UI.Port),
-			Handler:      mux,
-			ReadTimeout:  15 * time.Second,
-			WriteTimeout: 15 * time.Second,
-		}
-		
+
+		// Create the full API server with health endpoints
+		apiServer := api.NewServer(mockController, cfg, setupLog.WithName("api"), uiAssets)
+
 		setupLog.Info("Web UI enabled in standalone mode", "port", cfg.UI.Port, "url", fmt.Sprintf("http://localhost:%d", cfg.UI.Port))
-		
+
 		// Start server and block
-		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		if err := apiServer.Start(cfg.UI.Port); err != nil && err != http.ErrServerClosed {
 			return fmt.Errorf("failed to start UI server: %w", err)
 		}
 	} else {
 		setupLog.Info("Standalone mode demonstration complete - tenant discovery successful")
 		setupLog.Info("Web UI disabled - exiting")
 	}
-	
+
 	return nil
 }
 
 // createStandaloneCollector creates a collector that can work without Kubernetes
-func createStandaloneCollector(cfg *config.Config) standaloneCollector {
-	return standaloneCollector{
+func createStandaloneCollector(cfg *config.Config) *standaloneCollector {
+	return &standaloneCollector{
 		cfg: cfg,
 		log: setupLog.WithName("standalone-collector"),
 	}
@@ -353,15 +329,35 @@ type standaloneCollector struct {
 	log logr.Logger
 }
 
+// CollectMetrics implements basic metrics collection for standalone mode
+func (s *standaloneCollector) CollectMetrics(ctx context.Context) (map[string]*collector.TenantMetrics, error) {
+	// In standalone mode, return synthetic metrics data
+	tenants, err := s.GetTenantList(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	metrics := make(map[string]*collector.TenantMetrics)
+	for _, tenant := range tenants {
+		metrics[tenant] = &collector.TenantMetrics{
+			Tenant:     tenant,
+			Metrics:    make(map[string][]collector.MetricData),
+			LastUpdate: time.Now(),
+		}
+	}
+
+	return metrics, nil
+}
+
 // GetTenantList implements tenant discovery for standalone mode
 func (s *standaloneCollector) GetTenantList(ctx context.Context) ([]string, error) {
 	// Try fallback tenants first
 	if len(s.cfg.MetricsDiscovery.TenantDiscovery.FallbackTenants) > 0 {
-		s.log.Info("Using configured fallback tenants", 
+		s.log.Info("Using configured fallback tenants",
 			"count", len(s.cfg.MetricsDiscovery.TenantDiscovery.FallbackTenants))
 		return s.cfg.MetricsDiscovery.TenantDiscovery.FallbackTenants, nil
 	}
-	
+
 	// Try synthetic tenants
 	if s.cfg.MetricsDiscovery.TenantDiscovery.EnableSynthetic || s.cfg.Synthetic.Enabled {
 		count := s.cfg.MetricsDiscovery.TenantDiscovery.SyntheticCount
@@ -372,16 +368,16 @@ func (s *standaloneCollector) GetTenantList(ctx context.Context) ([]string, erro
 				count = 3
 			}
 		}
-		
+
 		tenants := make([]string, count)
 		for i := 0; i < count; i++ {
 			tenants[i] = fmt.Sprintf("synthetic-tenant-%d", i+1)
 		}
-		
+
 		s.log.Info("Generated synthetic tenants", "count", len(tenants))
 		return tenants, nil
 	}
-	
+
 	return nil, fmt.Errorf("no tenant discovery method available in standalone mode")
 }
 
@@ -390,38 +386,38 @@ func testMetricsConnectivity(cfg *config.Config) error {
 	client := &http.Client{
 		Timeout: 10 * time.Second,
 	}
-	
+
 	// Test with a simple query
 	testURL := fmt.Sprintf("%s?query=up", cfg.MetricsEndpoint)
 	req, err := http.NewRequest("GET", testURL, nil)
 	if err != nil {
 		return fmt.Errorf("failed to create test request: %w", err)
 	}
-	
+
 	// Add tenant headers
 	if cfg.MetricsDiscovery.TenantDiscovery.MetricsTenantID != "" {
 		req.Header.Set("X-Scope-OrgID", cfg.MetricsDiscovery.TenantDiscovery.MetricsTenantID)
 		setupLog.Info("Added tenant header for test", "tenant", cfg.MetricsDiscovery.TenantDiscovery.MetricsTenantID)
 	}
-	
+
 	// Add any additional custom headers
 	for key, value := range cfg.MetricsDiscovery.TenantDiscovery.TenantHeaders {
 		req.Header.Set(key, value)
 	}
-	
+
 	resp, err := client.Do(req)
 	if err != nil {
 		return fmt.Errorf("HTTP request failed: %w", err)
 	}
 	defer func() { _ = resp.Body.Close() }()
-	
-	setupLog.Info("Metrics endpoint test response", 
-		"status", resp.Status, 
+
+	setupLog.Info("Metrics endpoint test response",
+		"status", resp.Status,
 		"statusCode", resp.StatusCode)
-	
+
 	if resp.StatusCode == http.StatusOK {
 		return nil
 	}
-	
+
 	return fmt.Errorf("metrics endpoint returned status: %d %s", resp.StatusCode, resp.Status)
-} 
+}
