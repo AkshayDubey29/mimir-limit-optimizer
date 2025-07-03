@@ -172,6 +172,23 @@ jobs:
     - name: Download dependencies
       run: go mod download
       
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: ui/package-lock.json
+        
+    - name: Install UI dependencies
+      run: |
+        cd ui
+        npm ci
+        
+    - name: Build UI
+      run: |
+        cd ui
+        npm run build
+        
     - name: Run golangci-lint
       uses: golangci/golangci-lint-action@v3
       with:
@@ -510,7 +527,7 @@ jobs:
         EOF
         
     - name: Create Release
-      uses: softprops/action-gh-release@v1
+      uses: softprops/action-gh-release@v2
       with:
         tag_name: v${{ steps.version.outputs.version }}
         name: Mimir Limit Optimizer v${{ steps.version.outputs.version }}
