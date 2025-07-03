@@ -12,74 +12,77 @@ import (
 type Config struct {
 	// Operating mode: "dry-run" or "prod"
 	Mode string `yaml:"mode" json:"mode"`
-	
+
 	// Buffer percentage to add to calculated limits (e.g., 20 for 20%)
 	BufferPercentage float64 `yaml:"bufferPercentage" json:"bufferPercentage"`
-	
+
 	// How often to update limits
 	UpdateInterval time.Duration `yaml:"updateInterval" json:"updateInterval"`
-	
+
 	// Mimir configuration
 	Mimir MimirConfig `yaml:"mimir" json:"mimir"`
-	
+
 	// Tenant scoping configuration
 	TenantScoping TenantScopingConfig `yaml:"tenantScoping" json:"tenantScoping"`
-	
+
 	// Metrics discovery configuration
 	MetricsDiscovery MetricsDiscoveryConfig `yaml:"metricsDiscovery" json:"metricsDiscovery"`
-	
+
 	// Fallback metrics endpoint (e.g., Prometheus URL)
 	MetricsEndpoint string `yaml:"metricsEndpoint" json:"metricsEndpoint"`
-	
+
 	// Event-driven spike detection
 	EventSpike EventSpikeConfig `yaml:"eventSpike" json:"eventSpike"`
-	
+
 	// Trend analysis configuration
 	TrendAnalysis TrendAnalysisConfig `yaml:"trendAnalysis" json:"trendAnalysis"`
-	
+
 	// Limits configuration
 	Limits LimitsConfig `yaml:"limits" json:"limits"`
-	
+
 	// Audit logging configuration
 	AuditLog AuditLogConfig `yaml:"auditLog" json:"auditLog"`
-	
+
 	// Synthetic mode for testing
 	Synthetic SyntheticConfig `yaml:"synthetic" json:"synthetic"`
-	
+
 	// Cost control and budget management
 	CostControl CostControlConfig `yaml:"costControl" json:"costControl"`
-	
+
 	// Circuit breaker for blast protection
 	CircuitBreaker CircuitBreakerConfig `yaml:"circuitBreaker" json:"circuitBreaker"`
-	
+
 	// Emergency controls
 	Emergency EmergencyConfig `yaml:"emergency" json:"emergency"`
-	
+
 	// Advanced alerting
 	Alerting AlertingConfig `yaml:"alerting" json:"alerting"`
-	
+
 	// Performance optimization
 	Performance PerformanceConfig `yaml:"performance" json:"performance"`
-	
+
 	// Dynamic limits configuration
 	DynamicLimits DynamicLimitsConfig `yaml:"dynamicLimits" json:"dynamicLimits"`
-	
+
 	// Web UI configuration
 	UI UIConfig `yaml:"ui" json:"ui"`
+
+	// Health scanner configuration
+	HealthScanner HealthScannerConfig `yaml:"healthScanner" json:"healthScanner"`
 }
 
 type MimirConfig struct {
 	// Namespace where Mimir is deployed
 	Namespace string `yaml:"namespace" json:"namespace"`
-	
+
 	// Name of the runtime overrides ConfigMap
 	ConfigMapName string `yaml:"configMapName" json:"configMapName"`
-	
+
 	// Whether to trigger rollout after ConfigMap changes
 	// Default: false - Mimir runtime overrides are applied automatically without restarts
 	// Set to true only if you need forced component restarts for other configuration changes
 	TriggerRollout bool `yaml:"triggerRollout" json:"triggerRollout"`
-	
+
 	// Components to rollout (if TriggerRollout is true)
 	RolloutComponents []string `yaml:"rolloutComponents" json:"rolloutComponents"`
 }
@@ -87,10 +90,10 @@ type MimirConfig struct {
 type TenantScopingConfig struct {
 	// List of tenant patterns to skip (glob or regex)
 	SkipList []string `yaml:"skipList" json:"skipList"`
-	
+
 	// List of tenant patterns to include (empty means all, glob or regex)
 	IncludeList []string `yaml:"includeList" json:"includeList"`
-	
+
 	// Whether to use regex instead of glob patterns
 	UseRegex bool `yaml:"useRegex" json:"useRegex"`
 }
@@ -98,25 +101,25 @@ type TenantScopingConfig struct {
 type MetricsDiscoveryConfig struct {
 	// Enable auto-discovery of metrics endpoints
 	Enabled bool `yaml:"enabled" json:"enabled"`
-	
+
 	// Namespace to discover services in
 	Namespace string `yaml:"namespace" json:"namespace"`
-	
+
 	// Label selector for discovering services
 	ServiceLabelSelector string `yaml:"serviceLabelSelector" json:"serviceLabelSelector"`
-	
+
 	// List of known service names to discover
 	ServiceNames []string `yaml:"serviceNames" json:"serviceNames"`
-	
+
 	// Metrics path on services
 	MetricsPath string `yaml:"metricsPath" json:"metricsPath"`
-	
+
 	// Port name for metrics
 	PortName string `yaml:"portName" json:"portName"`
-	
+
 	// Port number (if PortName is not used)
 	Port int `yaml:"port" json:"port"`
-	
+
 	// Tenant discovery configuration
 	TenantDiscovery TenantDiscoveryConfig `yaml:"tenantDiscovery" json:"tenantDiscovery"`
 }
@@ -124,19 +127,19 @@ type MetricsDiscoveryConfig struct {
 type TenantDiscoveryConfig struct {
 	// Fallback tenant list when metrics discovery fails
 	FallbackTenants []string `yaml:"fallbackTenants" json:"fallbackTenants"`
-	
+
 	// ConfigMap names to search for tenant configurations
 	ConfigMapNames []string `yaml:"configMapNames" json:"configMapNames"`
-	
+
 	// Enable synthetic tenant generation for testing
 	EnableSynthetic bool `yaml:"enableSynthetic" json:"enableSynthetic"`
-	
+
 	// Number of synthetic tenants to create
 	SyntheticCount int `yaml:"syntheticCount" json:"syntheticCount"`
-	
+
 	// Tenant ID to use for metrics collection in multi-tenant Mimir
 	MetricsTenantID string `yaml:"metricsTenantID" json:"metricsTenantID"`
-	
+
 	// Additional tenant headers (for custom auth)
 	TenantHeaders map[string]string `yaml:"tenantHeaders" json:"tenantHeaders"`
 }
@@ -144,16 +147,16 @@ type TenantDiscoveryConfig struct {
 type EventSpikeConfig struct {
 	// Enable event-driven spike detection
 	Enabled bool `yaml:"enabled" json:"enabled"`
-	
+
 	// Threshold multiplier for spike detection (e.g., 2.0 for 2x)
 	Threshold float64 `yaml:"threshold" json:"threshold"`
-	
+
 	// Time window for spike detection
 	DetectionWindow time.Duration `yaml:"detectionWindow" json:"detectionWindow"`
-	
+
 	// How long to keep increased limits after spike
 	CooldownPeriod time.Duration `yaml:"cooldownPeriod" json:"cooldownPeriod"`
-	
+
 	// Maximum spike multiplier to apply
 	MaxSpikeMultiplier float64 `yaml:"maxSpikeMultiplier" json:"maxSpikeMultiplier"`
 }
@@ -161,16 +164,16 @@ type EventSpikeConfig struct {
 type TrendAnalysisConfig struct {
 	// Time window for trend analysis
 	AnalysisWindow time.Duration `yaml:"analysisWindow" json:"analysisWindow"`
-	
+
 	// Percentile to use for trend analysis (e.g., 95 for 95th percentile)
 	Percentile float64 `yaml:"percentile" json:"percentile"`
-	
+
 	// Use moving average in trend calculation
 	UseMovingAverage bool `yaml:"useMovingAverage" json:"useMovingAverage"`
-	
+
 	// Include peak usage in calculations
 	IncludePeaks bool `yaml:"includePeaks" json:"includePeaks"`
-	
+
 	// Time-of-day specific buffers
 	TimeOfDayBuffers map[string]float64 `yaml:"timeOfDayBuffers" json:"timeOfDayBuffers"`
 }
@@ -178,16 +181,16 @@ type TrendAnalysisConfig struct {
 type LimitsConfig struct {
 	// Minimum limits per tenant
 	MinLimits map[string]interface{} `yaml:"minLimits" json:"minLimits"`
-	
+
 	// Maximum limits per tenant
 	MaxLimits map[string]interface{} `yaml:"maxLimits" json:"maxLimits"`
-	
+
 	// Default limits for new tenants
 	DefaultLimits map[string]interface{} `yaml:"defaultLimits" json:"defaultLimits"`
-	
+
 	// TTL for removing limits of inactive tenants
 	InactiveTenantTTL time.Duration `yaml:"inactiveTenantTTL" json:"inactiveTenantTTL"`
-	
+
 	// Tenant tiers configuration
 	TenantTiers map[string]TenantTierConfig `yaml:"tenantTiers" json:"tenantTiers"`
 }
@@ -195,7 +198,7 @@ type LimitsConfig struct {
 type TenantTierConfig struct {
 	// Buffer percentage for this tier
 	BufferPercentage float64 `yaml:"bufferPercentage" json:"bufferPercentage"`
-	
+
 	// Specific limits for this tier
 	Limits map[string]interface{} `yaml:"limits" json:"limits"`
 }
@@ -203,19 +206,19 @@ type TenantTierConfig struct {
 type AuditLogConfig struct {
 	// Enable audit logging
 	Enabled bool `yaml:"enabled" json:"enabled"`
-	
+
 	// Storage type: "memory", "configmap", or "external"
 	StorageType string `yaml:"storageType" json:"storageType"`
-	
+
 	// Maximum entries to keep in memory
 	MaxEntries int `yaml:"maxEntries" json:"maxEntries"`
-	
+
 	// ConfigMap name for audit storage
 	ConfigMapName string `yaml:"configMapName" json:"configMapName"`
-	
+
 	// External storage configuration
 	ExternalStorage map[string]interface{} `yaml:"externalStorage" json:"externalStorage"`
-	
+
 	// Retention policies
 	Retention AuditRetentionConfig `yaml:"retention" json:"retention"`
 }
@@ -224,19 +227,19 @@ type AuditLogConfig struct {
 type AuditRetentionConfig struct {
 	// Time-based retention (how long to keep entries)
 	RetentionPeriod time.Duration `yaml:"retentionPeriod" json:"retentionPeriod"`
-	
+
 	// Maximum number of entries to keep (overrides maxEntries if set)
 	MaxEntries int `yaml:"maxEntries" json:"maxEntries"`
-	
+
 	// Maximum size for ConfigMap storage (in bytes)
 	MaxSizeBytes int64 `yaml:"maxSizeBytes" json:"maxSizeBytes"`
-	
+
 	// Cleanup interval (how often to run retention cleanup)
 	CleanupInterval time.Duration `yaml:"cleanupInterval" json:"cleanupInterval"`
-	
+
 	// Batch size for cleanup operations
 	CleanupBatchSize int `yaml:"cleanupBatchSize" json:"cleanupBatchSize"`
-	
+
 	// Emergency cleanup threshold (trigger immediate cleanup at this percentage)
 	EmergencyThresholdPercent float64 `yaml:"emergencyThresholdPercent" json:"emergencyThresholdPercent"`
 }
@@ -244,10 +247,10 @@ type AuditRetentionConfig struct {
 type SyntheticConfig struct {
 	// Enable synthetic mode for testing
 	Enabled bool `yaml:"enabled" json:"enabled"`
-	
+
 	// Number of synthetic tenants to simulate
 	TenantCount int `yaml:"tenantCount" json:"tenantCount"`
-	
+
 	// Synthetic metrics configuration
 	MetricsConfig map[string]interface{} `yaml:"metricsConfig" json:"metricsConfig"`
 }
@@ -256,25 +259,25 @@ type SyntheticConfig struct {
 type CostControlConfig struct {
 	// Enable cost control features
 	Enabled bool `yaml:"enabled" json:"enabled"`
-	
+
 	// Cost calculation method: "samples", "series", "queries", "composite"
 	CostMethod string `yaml:"costMethod" json:"costMethod"`
-	
+
 	// Cost per unit (e.g., per million samples)
 	CostPerUnit float64 `yaml:"costPerUnit" json:"costPerUnit"`
-	
+
 	// Budget limits per tenant
 	TenantBudgets map[string]BudgetConfig `yaml:"tenantBudgets" json:"tenantBudgets"`
-	
+
 	// Global budget limit
 	GlobalBudget BudgetConfig `yaml:"globalBudget" json:"globalBudget"`
-	
+
 	// Cost alerting thresholds (percentage of budget)
 	AlertThresholds []float64 `yaml:"alertThresholds" json:"alertThresholds"`
-	
+
 	// Automatic limit reduction when over budget
 	AutoLimitReduction bool `yaml:"autoLimitReduction" json:"autoLimitReduction"`
-	
+
 	// Cost estimation window
 	EstimationWindow time.Duration `yaml:"estimationWindow" json:"estimationWindow"`
 }
@@ -282,16 +285,16 @@ type CostControlConfig struct {
 type BudgetConfig struct {
 	// Daily budget limit
 	Daily float64 `yaml:"daily" json:"daily"`
-	
+
 	// Monthly budget limit
 	Monthly float64 `yaml:"monthly" json:"monthly"`
-	
+
 	// Annual budget limit
 	Annual float64 `yaml:"annual" json:"annual"`
-	
+
 	// Currency code
 	Currency string `yaml:"currency" json:"currency"`
-	
+
 	// Enforce budget (block operations when exceeded)
 	EnforceBudget bool `yaml:"enforceBudget" json:"enforceBudget"`
 }
@@ -300,31 +303,31 @@ type BudgetConfig struct {
 type CircuitBreakerConfig struct {
 	// Enable circuit breaker
 	Enabled bool `yaml:"enabled" json:"enabled"`
-	
+
 	// Runtime enable/disable control (can be changed without restart)
 	RuntimeEnabled bool `yaml:"runtimeEnabled" json:"runtimeEnabled"`
-	
+
 	// Auto-configuration mode: "manual", "auto", "hybrid"
 	Mode string `yaml:"mode" json:"mode"`
-	
+
 	// Failure threshold (percentage) - used in manual mode
 	FailureThreshold float64 `yaml:"failureThreshold" json:"failureThreshold"`
-	
+
 	// Request volume threshold - used in manual mode
 	RequestVolumeThreshold int `yaml:"requestVolumeThreshold" json:"requestVolumeThreshold"`
-	
+
 	// Sleep window for half-open state
 	SleepWindow time.Duration `yaml:"sleepWindow" json:"sleepWindow"`
-	
+
 	// Maximum requests in half-open state
 	MaxRequestsInHalfOpen int `yaml:"maxRequestsInHalfOpen" json:"maxRequestsInHalfOpen"`
-	
+
 	// Automatic configuration based on limits and metrics
 	AutoConfig AutoCircuitBreakerConfig `yaml:"autoConfig" json:"autoConfig"`
-	
+
 	// Rate limiting configuration
 	RateLimit RateLimitConfig `yaml:"rateLimit" json:"rateLimit"`
-	
+
 	// Blast protection thresholds
 	BlastProtection BlastProtectionConfig `yaml:"blastProtection" json:"blastProtection"`
 }
@@ -333,19 +336,19 @@ type CircuitBreakerConfig struct {
 type AutoCircuitBreakerConfig struct {
 	// Enable automatic threshold calculation
 	Enabled bool `yaml:"enabled" json:"enabled"`
-	
+
 	// Threshold multipliers based on current limits
 	LimitMultipliers LimitMultiplierConfig `yaml:"limitMultipliers" json:"limitMultipliers"`
-	
+
 	// Real-time adaptation settings
 	RealtimeAdaptation RealtimeAdaptationConfig `yaml:"realtimeAdaptation" json:"realtimeAdaptation"`
-	
+
 	// Baseline calculation window
 	BaselineWindow time.Duration `yaml:"baselineWindow" json:"baselineWindow"`
-	
+
 	// Minimum observation period before auto-tuning
 	MinObservationPeriod time.Duration `yaml:"minObservationPeriod" json:"minObservationPeriod"`
-	
+
 	// Safety margins for threshold calculation
 	SafetyMargins SafetyMarginConfig `yaml:"safetyMargins" json:"safetyMargins"`
 }
@@ -354,13 +357,13 @@ type AutoCircuitBreakerConfig struct {
 type LimitMultiplierConfig struct {
 	// Ingestion rate threshold as multiplier of current limit
 	IngestionRateMultiplier float64 `yaml:"ingestionRateMultiplier" json:"ingestionRateMultiplier"`
-	
-	// Query rate threshold as multiplier of current limit  
+
+	// Query rate threshold as multiplier of current limit
 	QueryRateMultiplier float64 `yaml:"queryRateMultiplier" json:"queryRateMultiplier"`
-	
+
 	// Series threshold as multiplier of current limit
 	SeriesMultiplier float64 `yaml:"seriesMultiplier" json:"seriesMultiplier"`
-	
+
 	// Burst threshold as multiplier of current burst limit
 	BurstMultiplier float64 `yaml:"burstMultiplier" json:"burstMultiplier"`
 }
@@ -369,19 +372,19 @@ type LimitMultiplierConfig struct {
 type RealtimeAdaptationConfig struct {
 	// Enable real-time adaptation
 	Enabled bool `yaml:"enabled" json:"enabled"`
-	
+
 	// Adaptation interval
 	Interval time.Duration `yaml:"interval" json:"interval"`
-	
+
 	// Learning rate for threshold adjustment (0.0-1.0)
 	LearningRate float64 `yaml:"learningRate" json:"learningRate"`
-	
+
 	// Maximum threshold change per adaptation cycle (percentage)
 	MaxChangePercent float64 `yaml:"maxChangePercent" json:"maxChangePercent"`
-	
+
 	// Percentile to use for threshold calculation
 	Percentile float64 `yaml:"percentile" json:"percentile"`
-	
+
 	// Enable seasonal pattern detection
 	SeasonalPatterns bool `yaml:"seasonalPatterns" json:"seasonalPatterns"`
 }
@@ -390,13 +393,13 @@ type RealtimeAdaptationConfig struct {
 type SafetyMarginConfig struct {
 	// Minimum safety margin (percentage above calculated threshold)
 	MinMargin float64 `yaml:"minMargin" json:"minMargin"`
-	
+
 	// Maximum safety margin
 	MaxMargin float64 `yaml:"maxMargin" json:"maxMargin"`
-	
+
 	// Default safety margin
 	DefaultMargin float64 `yaml:"defaultMargin" json:"defaultMargin"`
-	
+
 	// Tenant-specific margins
 	TenantMargins map[string]float64 `yaml:"tenantMargins" json:"tenantMargins"`
 }
@@ -404,13 +407,13 @@ type SafetyMarginConfig struct {
 type RateLimitConfig struct {
 	// Enable rate limiting
 	Enabled bool `yaml:"enabled" json:"enabled"`
-	
+
 	// Requests per second per tenant
 	RequestsPerSecond float64 `yaml:"requestsPerSecond" json:"requestsPerSecond"`
-	
+
 	// Burst capacity
 	BurstCapacity int `yaml:"burstCapacity" json:"burstCapacity"`
-	
+
 	// Rate limit window
 	Window time.Duration `yaml:"window" json:"window"`
 }
@@ -418,16 +421,16 @@ type RateLimitConfig struct {
 type BlastProtectionConfig struct {
 	// Manual thresholds (used when auto-config is disabled)
 	ManualThresholds ManualThresholdConfig `yaml:"manualThresholds" json:"manualThresholds"`
-	
+
 	// Use automatic threshold calculation based on current limits
 	UseAutoThresholds bool `yaml:"useAutoThresholds" json:"useAutoThresholds"`
-	
+
 	// Automatic emergency shutdown
 	AutoEmergencyShutdown bool `yaml:"autoEmergencyShutdown" json:"autoEmergencyShutdown"`
-	
+
 	// Recovery time after blast
 	RecoveryTime time.Duration `yaml:"recoveryTime" json:"recoveryTime"`
-	
+
 	// Per-tenant threshold overrides
 	TenantOverrides map[string]ManualThresholdConfig `yaml:"tenantOverrides" json:"tenantOverrides"`
 }
@@ -436,10 +439,10 @@ type BlastProtectionConfig struct {
 type ManualThresholdConfig struct {
 	// Ingestion rate spike threshold (samples/sec)
 	IngestionSpikeThreshold float64 `yaml:"ingestionSpikeThreshold" json:"ingestionSpikeThreshold"`
-	
+
 	// Query rate spike threshold (queries/sec)
 	QuerySpikeThreshold float64 `yaml:"querySpikeThreshold" json:"querySpikeThreshold"`
-	
+
 	// Series creation spike threshold (series/sec)
 	SeriesSpikeThreshold float64 `yaml:"seriesSpikeThreshold" json:"seriesSpikeThreshold"`
 }
@@ -448,19 +451,19 @@ type ManualThresholdConfig struct {
 type EmergencyConfig struct {
 	// Enable emergency controls
 	Enabled bool `yaml:"enabled" json:"enabled"`
-	
+
 	// Emergency contact webhook URL
 	WebhookURL string `yaml:"webhookURL" json:"webhookURL"`
-	
+
 	// Emergency contact emails
 	Contacts []string `yaml:"contacts" json:"contacts"`
-	
+
 	// Panic mode configuration
 	PanicMode PanicModeConfig `yaml:"panicMode" json:"panicMode"`
-	
+
 	// Emergency shutdown triggers
 	ShutdownTriggers []EmergencyTrigger `yaml:"shutdownTriggers" json:"shutdownTriggers"`
-	
+
 	// Recovery procedures
 	RecoveryProcedures RecoveryConfig `yaml:"recoveryProcedures" json:"recoveryProcedures"`
 }
@@ -468,16 +471,16 @@ type EmergencyConfig struct {
 type PanicModeConfig struct {
 	// Enable panic mode
 	Enabled bool `yaml:"enabled" json:"enabled"`
-	
+
 	// CPU threshold for panic mode (percentage)
 	CPUThreshold float64 `yaml:"cpuThreshold" json:"cpuThreshold"`
-	
+
 	// Memory threshold for panic mode (percentage)
 	MemoryThreshold float64 `yaml:"memoryThreshold" json:"memoryThreshold"`
-	
+
 	// Error rate threshold for panic mode (errors/sec)
 	ErrorRateThreshold float64 `yaml:"errorRateThreshold" json:"errorRateThreshold"`
-	
+
 	// Actions to take in panic mode
 	Actions []string `yaml:"actions" json:"actions"`
 }
@@ -485,16 +488,16 @@ type PanicModeConfig struct {
 type EmergencyTrigger struct {
 	// Trigger name
 	Name string `yaml:"name" json:"name"`
-	
+
 	// Metric to monitor
 	Metric string `yaml:"metric" json:"metric"`
-	
+
 	// Threshold value
 	Threshold float64 `yaml:"threshold" json:"threshold"`
-	
+
 	// Duration threshold must be exceeded
 	Duration time.Duration `yaml:"duration" json:"duration"`
-	
+
 	// Action to take
 	Action string `yaml:"action" json:"action"`
 }
@@ -502,13 +505,13 @@ type EmergencyTrigger struct {
 type RecoveryConfig struct {
 	// Automatic recovery enabled
 	AutoRecovery bool `yaml:"autoRecovery" json:"autoRecovery"`
-	
+
 	// Recovery check interval
 	CheckInterval time.Duration `yaml:"checkInterval" json:"checkInterval"`
-	
+
 	// Health check timeout
 	HealthCheckTimeout time.Duration `yaml:"healthCheckTimeout" json:"healthCheckTimeout"`
-	
+
 	// Maximum recovery attempts
 	MaxAttempts int `yaml:"maxAttempts" json:"maxAttempts"`
 }
@@ -517,22 +520,22 @@ type RecoveryConfig struct {
 type AlertingConfig struct {
 	// Enable alerting
 	Enabled bool `yaml:"enabled" json:"enabled"`
-	
+
 	// Slack integration
 	Slack SlackConfig `yaml:"slack" json:"slack"`
-	
+
 	// PagerDuty integration
 	PagerDuty PagerDutyConfig `yaml:"pagerDuty" json:"pagerDuty"`
-	
+
 	// Email configuration
 	Email EmailConfig `yaml:"email" json:"email"`
-	
+
 	// Webhook endpoints
 	Webhooks []WebhookConfig `yaml:"webhooks" json:"webhooks"`
-	
+
 	// Alert routing rules
 	RoutingRules []AlertRoutingRule `yaml:"routingRules" json:"routingRules"`
-	
+
 	// Escalation policies
 	EscalationPolicies []EscalationPolicy `yaml:"escalationPolicies" json:"escalationPolicies"`
 }
@@ -580,14 +583,14 @@ type AlertRoutingRule struct {
 }
 
 type EscalationPolicy struct {
-	Name     string             `yaml:"name" json:"name"`
-	Levels   []EscalationLevel  `yaml:"levels" json:"levels"`
-	Timeout  time.Duration      `yaml:"timeout" json:"timeout"`
+	Name    string            `yaml:"name" json:"name"`
+	Levels  []EscalationLevel `yaml:"levels" json:"levels"`
+	Timeout time.Duration     `yaml:"timeout" json:"timeout"`
 }
 
 type EscalationLevel struct {
-	Level    int      `yaml:"level" json:"level"`
-	Channels []string `yaml:"channels" json:"channels"`
+	Level    int           `yaml:"level" json:"level"`
+	Channels []string      `yaml:"channels" json:"channels"`
 	Delay    time.Duration `yaml:"delay" json:"delay"`
 }
 
@@ -595,16 +598,16 @@ type EscalationLevel struct {
 type PerformanceConfig struct {
 	// Enable performance optimizations
 	Enabled bool `yaml:"enabled" json:"enabled"`
-	
+
 	// Caching configuration
 	Cache CacheConfig `yaml:"cache" json:"cache"`
-	
+
 	// Batch processing settings
 	BatchProcessing BatchConfig `yaml:"batchProcessing" json:"batchProcessing"`
-	
+
 	// Resource optimization
 	ResourceOptimization ResourceOptimizationConfig `yaml:"resourceOptimization" json:"resourceOptimization"`
-	
+
 	// Compression settings
 	Compression CompressionConfig `yaml:"compression" json:"compression"`
 }
@@ -612,16 +615,16 @@ type PerformanceConfig struct {
 type CacheConfig struct {
 	// Enable caching
 	Enabled bool `yaml:"enabled" json:"enabled"`
-	
+
 	// Cache TTL
 	TTL time.Duration `yaml:"ttl" json:"ttl"`
-	
+
 	// Cache size (MB)
 	SizeMB int `yaml:"sizeMB" json:"sizeMB"`
-	
+
 	// Cache type: "memory", "redis", "memcached"
 	Type string `yaml:"type" json:"type"`
-	
+
 	// Redis configuration (if type is redis)
 	Redis RedisConfig `yaml:"redis" json:"redis"`
 }
@@ -635,13 +638,13 @@ type RedisConfig struct {
 type BatchConfig struct {
 	// Enable batch processing
 	Enabled bool `yaml:"enabled" json:"enabled"`
-	
+
 	// Batch size
 	Size int `yaml:"size" json:"size"`
-	
+
 	// Batch timeout
 	Timeout time.Duration `yaml:"timeout" json:"timeout"`
-	
+
 	// Max concurrent batches
 	MaxConcurrent int `yaml:"maxConcurrent" json:"maxConcurrent"`
 }
@@ -649,10 +652,10 @@ type BatchConfig struct {
 type ResourceOptimizationConfig struct {
 	// CPU optimization
 	CPUOptimization bool `yaml:"cpuOptimization" json:"cpuOptimization"`
-	
+
 	// Memory optimization
 	MemoryOptimization bool `yaml:"memoryOptimization" json:"memoryOptimization"`
-	
+
 	// Garbage collection tuning
 	GCTuning GCTuningConfig `yaml:"gcTuning" json:"gcTuning"`
 }
@@ -660,7 +663,7 @@ type ResourceOptimizationConfig struct {
 type GCTuningConfig struct {
 	// Target GC percentage
 	TargetPercent int `yaml:"targetPercent" json:"targetPercent"`
-	
+
 	// Memory limit
 	MemoryLimit string `yaml:"memoryLimit" json:"memoryLimit"`
 }
@@ -668,51 +671,66 @@ type GCTuningConfig struct {
 type CompressionConfig struct {
 	// Enable compression
 	Enabled bool `yaml:"enabled" json:"enabled"`
-	
+
 	// Compression algorithm: "gzip", "lz4", "snappy"
 	Algorithm string `yaml:"algorithm" json:"algorithm"`
-	
+
 	// Compression level
 	Level int `yaml:"level" json:"level"`
 }
 
 // DynamicLimitsConfig defines configuration for dynamic limit management
 type DynamicLimitsConfig struct {
-	Enabled         bool                        `yaml:"enabled"`
+	Enabled          bool                       `yaml:"enabled"`
 	LimitDefinitions map[string]LimitDefinition `yaml:"limit_definitions"`
-	DefaultBuffer   float64                     `yaml:"default_buffer"`
-	AutoDetect      bool                        `yaml:"auto_detect"`
+	DefaultBuffer    float64                    `yaml:"default_buffer"`
+	AutoDetect       bool                       `yaml:"auto_detect"`
 }
 
 // LimitDefinition defines how to handle a specific limit type
 type LimitDefinition struct {
-	Name          string      `yaml:"name"`
-	Type          string      `yaml:"type"` // "rate", "count", "size", "duration", "percentage"
-	MetricSource  string      `yaml:"metric_source"`
-	DefaultValue  interface{} `yaml:"default_value"`
-	MinValue      interface{} `yaml:"min_value"`
-	MaxValue      interface{} `yaml:"max_value"`
-	BufferFactor  float64     `yaml:"buffer_factor"`
-	Enabled       bool        `yaml:"enabled"`
-	Description   string      `yaml:"description"`
+	Name         string      `yaml:"name"`
+	Type         string      `yaml:"type"` // "rate", "count", "size", "duration", "percentage"
+	MetricSource string      `yaml:"metric_source"`
+	DefaultValue interface{} `yaml:"default_value"`
+	MinValue     interface{} `yaml:"min_value"`
+	MaxValue     interface{} `yaml:"max_value"`
+	BufferFactor float64     `yaml:"buffer_factor"`
+	Enabled      bool        `yaml:"enabled"`
+	Description  string      `yaml:"description"`
 }
 
 // UIConfig holds web UI configuration
 type UIConfig struct {
 	// Enable/disable the web dashboard
 	Enabled bool `yaml:"enabled" json:"enabled"`
-	
+
 	// Port for the web UI and API server
 	Port int `yaml:"port" json:"port"`
+}
+
+// HealthScannerConfig defines health scanner configuration
+type HealthScannerConfig struct {
+	// Enable health scanner
+	Enabled bool `yaml:"enabled" json:"enabled"`
+
+	// Health check interval
+	CheckInterval time.Duration `yaml:"checkInterval" json:"checkInterval"`
+
+	// Health check timeout
+	HealthCheckTimeout time.Duration `yaml:"healthCheckTimeout" json:"healthCheckTimeout"`
+
+	// Maximum health check attempts
+	MaxAttempts int `yaml:"maxAttempts" json:"maxAttempts"`
 }
 
 // GetDefaultConfig returns a configuration with sensible defaults
 func GetDefaultConfig() *Config {
 	mode := getEnvOrDefault("MODE", "dry-run")
-	
+
 	// Circuit breaker should be disabled by default in dry-run mode for observation purposes
 	circuitBreakerEnabled := mode == "prod"
-	
+
 	return &Config{
 		Mode:             mode,
 		BufferPercentage: 20.0,
@@ -736,12 +754,12 @@ func GetDefaultConfig() *Config {
 			PortName:             "http-metrics",
 			Port:                 8080,
 			TenantDiscovery: TenantDiscoveryConfig{
-				FallbackTenants:  []string{}, // Empty by default, user can configure
-				ConfigMapNames:   []string{"overrides", "mimir-runtime-overrides", "runtime-config"},
-				EnableSynthetic:  true,  // Enable synthetic tenants as final fallback
-				SyntheticCount:   3,     // Default to 3 synthetic tenants
-				MetricsTenantID:  "",    // Empty by default, user must configure for multi-tenant
-				TenantHeaders:    make(map[string]string), // Empty by default
+				FallbackTenants: []string{}, // Empty by default, user can configure
+				ConfigMapNames:  []string{"overrides", "mimir-runtime-overrides", "runtime-config"},
+				EnableSynthetic: true,                    // Enable synthetic tenants as final fallback
+				SyntheticCount:  3,                       // Default to 3 synthetic tenants
+				MetricsTenantID: "",                      // Empty by default, user must configure for multi-tenant
+				TenantHeaders:   make(map[string]string), // Empty by default
 			},
 		},
 		EventSpike: EventSpikeConfig{
@@ -752,11 +770,11 @@ func GetDefaultConfig() *Config {
 			MaxSpikeMultiplier: 5.0,
 		},
 		TrendAnalysis: TrendAnalysisConfig{
-			AnalysisWindow:      48 * time.Hour,
-			Percentile:          95.0,
-			UseMovingAverage:    true,
-			IncludePeaks:        true,
-			TimeOfDayBuffers:    make(map[string]float64),
+			AnalysisWindow:   48 * time.Hour,
+			Percentile:       95.0,
+			UseMovingAverage: true,
+			IncludePeaks:     true,
+			TimeOfDayBuffers: make(map[string]float64),
 		},
 		Limits: LimitsConfig{
 			MinLimits:         make(map[string]interface{}),
@@ -766,17 +784,17 @@ func GetDefaultConfig() *Config {
 			TenantTiers:       make(map[string]TenantTierConfig),
 		},
 		AuditLog: AuditLogConfig{
-			Enabled:     true,
-			StorageType: "memory",
-			MaxEntries:  1000,
+			Enabled:       true,
+			StorageType:   "memory",
+			MaxEntries:    1000,
 			ConfigMapName: "mimir-limit-optimizer-audit",
 			Retention: AuditRetentionConfig{
-				RetentionPeriod:           7 * 24 * time.Hour,  // 7 days
-				MaxEntries:               1000,                 // Override MaxEntries above
-				MaxSizeBytes:             800 * 1024,           // 800KB (safe margin under 1MB ConfigMap limit)
-				CleanupInterval:          1 * time.Hour,        // Cleanup every hour
-				CleanupBatchSize:         100,                  // Process 100 entries at a time
-				EmergencyThresholdPercent: 90.0,                // Emergency cleanup at 90% capacity
+				RetentionPeriod:           7 * 24 * time.Hour, // 7 days
+				MaxEntries:                1000,               // Override MaxEntries above
+				MaxSizeBytes:              800 * 1024,         // 800KB (safe margin under 1MB ConfigMap limit)
+				CleanupInterval:           1 * time.Hour,      // Cleanup every hour
+				CleanupBatchSize:          100,                // Process 100 entries at a time
+				EmergencyThresholdPercent: 90.0,               // Emergency cleanup at 90% capacity
 			},
 		},
 		Synthetic: SyntheticConfig{
@@ -796,10 +814,10 @@ func GetDefaultConfig() *Config {
 		CircuitBreaker: CircuitBreakerConfig{
 			Enabled:                circuitBreakerEnabled, // Disabled in dry-run, enabled in prod
 			RuntimeEnabled:         circuitBreakerEnabled, // Disabled in dry-run, enabled in prod
-			Mode:                  "auto", // "manual", "auto", "hybrid"
+			Mode:                   "auto",                // "manual", "auto", "hybrid"
 			FailureThreshold:       50.0,
 			RequestVolumeThreshold: 20,
-			SleepWindow:           30 * time.Second,
+			SleepWindow:            30 * time.Second,
 			MaxRequestsInHalfOpen:  5,
 			AutoConfig: AutoCircuitBreakerConfig{
 				Enabled:              true,
@@ -820,17 +838,17 @@ func GetDefaultConfig() *Config {
 					SeasonalPatterns: false,
 				},
 				SafetyMargins: SafetyMarginConfig{
-					MinMargin:       10.0,
-					MaxMargin:       50.0,
-					DefaultMargin:   25.0,
-					TenantMargins:   make(map[string]float64),
+					MinMargin:     10.0,
+					MaxMargin:     50.0,
+					DefaultMargin: 25.0,
+					TenantMargins: make(map[string]float64),
 				},
 			},
 			RateLimit: RateLimitConfig{
 				Enabled:           true,
 				RequestsPerSecond: 100,
 				BurstCapacity:     200,
-				Window:           time.Minute,
+				Window:            time.Minute,
 			},
 			BlastProtection: BlastProtectionConfig{
 				UseAutoThresholds: true,
@@ -851,7 +869,7 @@ func GetDefaultConfig() *Config {
 				CPUThreshold:       90.0,
 				MemoryThreshold:    90.0,
 				ErrorRateThreshold: 100,
-				Actions:           []string{"reduce_limits", "throttle_ingestion", "alert"},
+				Actions:            []string{"reduce_limits", "throttle_ingestion", "alert"},
 			},
 			RecoveryProcedures: RecoveryConfig{
 				AutoRecovery:       true,
@@ -861,8 +879,8 @@ func GetDefaultConfig() *Config {
 			},
 		},
 		Alerting: AlertingConfig{
-			Enabled:           true,
-			RoutingRules:      []AlertRoutingRule{},
+			Enabled:            true,
+			RoutingRules:       []AlertRoutingRule{},
 			EscalationPolicies: []EscalationPolicy{},
 		},
 		Performance: PerformanceConfig{
@@ -894,14 +912,20 @@ func GetDefaultConfig() *Config {
 			},
 		},
 		DynamicLimits: DynamicLimitsConfig{
-			Enabled:         true,
+			Enabled:          true,
 			LimitDefinitions: GetDefaultLimitDefinitions(),
-			DefaultBuffer:   20.0,
-			AutoDetect:      true,
+			DefaultBuffer:    20.0,
+			AutoDetect:       true,
 		},
 		UI: UIConfig{
 			Enabled: true,
 			Port:    8082,
+		},
+		HealthScanner: HealthScannerConfig{
+			Enabled:            true,
+			CheckInterval:      5 * time.Minute,
+			HealthCheckTimeout: 10 * time.Second,
+			MaxAttempts:        3,
 		},
 	}
 }
@@ -998,4 +1022,4 @@ func (c *Config) Validate() error {
 	}
 
 	return nil
-} 
+}

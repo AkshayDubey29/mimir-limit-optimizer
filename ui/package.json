@@ -2,7 +2,7 @@
   "name": "mimir-limit-optimizer-ui",
   "version": "1.0.0",
   "private": true,
-  "homepage": ".",
+  "homepage": "/",
   "dependencies": {
     "@testing-library/jest-dom": "^5.16.5",
     "@testing-library/react": "^13.4.0",
@@ -23,6 +23,7 @@
   },
   "devDependencies": {
     "@types/react-router-dom": "^5.3.3",
+    "@types/recharts": "^1.8.29",
     "autoprefixer": "^10.4.14",
     "postcss": "^8.4.24",
     "tailwindcss": "^3.3.2"
@@ -53,4 +54,4 @@
     ]
   },
   "proxy": "http://localhost:8081"
-} 
+}
