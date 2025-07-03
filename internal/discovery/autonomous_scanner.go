@@ -575,9 +575,7 @@ func (s *AutonomousScanner) discoverMetricsEndpoints(ctx context.Context, compon
 		if discovery.Categories[role] == nil {
 			discovery.Categories[role] = []string{}
 		}
-		for _, url := range component.MetricsURLs {
-			discovery.Categories[role] = append(discovery.Categories[role], url)
-		}
+		discovery.Categories[role] = append(discovery.Categories[role], component.MetricsURLs...)
 	}
 
 	return discovery, nil

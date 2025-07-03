@@ -113,7 +113,11 @@ func (s *Server) setupUIRoutes() {
 	// Serve favicon and other root assets
 	s.router.HandleFunc("/favicon.ico", func(w http.ResponseWriter, r *http.Request) {
 		if file, err := uiBuildFS.Open("favicon.ico"); err == nil {
-			defer file.Close()
+			defer func() {
+				if err := file.Close(); err != nil {
+					s.log.Error(err, "Failed to close favicon file")
+				}
+			}()
 			http.ServeContent(w, r, "favicon.ico", time.Time{}, file.(io.ReadSeeker))
 		} else {
 			http.NotFound(w, r)
@@ -140,7 +144,9 @@ func (s *Server) serveReactApp(uiBuildFS fs.FS) http.HandlerFunc {
 
 		// Check if file exists
 		if file, err := uiBuildFS.Open(filePath); err == nil {
-			file.Close()
+			if err := file.Close(); err != nil {
+				s.log.Error(err, "Failed to close file during existence check")
+			}
 			// File exists, serve it
 			http.FileServer(http.FS(uiBuildFS)).ServeHTTP(w, r)
 			return
@@ -152,7 +158,11 @@ func (s *Server) serveReactApp(uiBuildFS fs.FS) http.HandlerFunc {
 			http.NotFound(w, r)
 			return
 		}
-		defer indexFile.Close()
+		defer func() {
+			if err := indexFile.Close(); err != nil {
+				s.log.Error(err, "Failed to close index.html file")
+			}
+		}()
 
 		// Set content type for HTML
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
