@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { ApiProvider } from './context/ApiContext';
 import { ThemeProvider } from './context/ThemeContext';
-import Sidebar from './components/layout/Sidebar';
 import Header from './components/layout/Header';
 import Dashboard from './pages/Dashboard';
 import HealthDashboard from './pages/HealthDashboard';
@@ -75,7 +74,7 @@ const LoadingSpinner: React.FC<{ message?: string }> = ({ message = 'Loading...'
 
 // Main App Component
 const App: React.FC = () => {
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  // Remove sidebar state since we're using top navigation now
   const [darkMode, setDarkMode] = useState(() => {
     const savedMode = localStorage.getItem('darkMode');
     return savedMode ? JSON.parse(savedMode) : false;
@@ -91,8 +90,9 @@ const App: React.FC = () => {
     }
   }, [darkMode]);
 
+  // Dummy function for header compatibility (not used anymore)
   const toggleSidebar = () => {
-    setSidebarOpen(!sidebarOpen);
+    // No longer needed since we're using top navigation
   };
 
   const toggleDarkMode = () => {
@@ -109,21 +109,17 @@ const App: React.FC = () => {
       <ThemeProvider value={themeValue}>
         <ApiProvider>
           <Router>
-            <div className="flex h-screen bg-gray-50 dark:bg-gray-900">
-              {/* Sidebar */}
-              <Sidebar open={sidebarOpen} onToggle={toggleSidebar} />
+            <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+              {/* Header with integrated top navigation */}
+              <Header 
+                onSidebarToggle={toggleSidebar}
+                darkMode={darkMode}
+                onDarkModeToggle={toggleDarkMode}
+              />
 
-              {/* Main Content */}
-              <div className="flex flex-col flex-1 overflow-hidden">
-                {/* Header */}
-                <Header 
-                  onSidebarToggle={toggleSidebar}
-                  darkMode={darkMode}
-                  onDarkModeToggle={toggleDarkMode}
-                />
-
-                {/* Page Content */}
-                <main className="flex-1 overflow-y-auto p-6">
+              {/* Main Content - Full width since no sidebar */}
+              <main className="flex-1">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
                   <Routes>
                     {/* Default redirect */}
                     <Route path="/" element={<Navigate to="/dashboard" replace />} />
@@ -134,8 +130,8 @@ const App: React.FC = () => {
                     <Route path="/infrastructure" element={<InfrastructureDashboard />} />
                     
                     {/* Tenant Routes */}
-                    <Route path="/tenants" element={<Tenants />} />
                     <Route path="/tenants/:tenantId" element={<TenantDetail />} />
+                    <Route path="/tenants" element={<Tenants />} />
                     
                     {/* Configuration Routes */}
                     <Route path="/config" element={<Config />} />
@@ -151,8 +147,8 @@ const App: React.FC = () => {
                     {/* Catch all - redirect to dashboard */}
                     <Route path="*" element={<Navigate to="/dashboard" replace />} />
                   </Routes>
-                </main>
-              </div>
+                </div>
+              </main>
             </div>
           </Router>
         </ApiProvider>

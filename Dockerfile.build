@@ -1,0 +1,145 @@
+# =============================================================================
+# OPTIMIZED MULTI-STAGE DOCKERFILE - Mimir Limit Optimizer
+# =============================================================================
+# This Dockerfile is optimized for:
+# - Fast build times using layer caching
+# - Minimal final image size
+# - Security best practices
+# - Efficient use of .dockerignore
+# - Multi-architecture support (amd64, arm64)
+# =============================================================================
+
+# Build arguments for multi-architecture support
+ARG TARGETPLATFORM
+ARG BUILDPLATFORM
+ARG TARGETOS=linux
+ARG TARGETARCH
+
+# -----------------------------------------------------------------------------
+# STAGE 1: UI Build Stage
+# -----------------------------------------------------------------------------
+FROM --platform=$BUILDPLATFORM node:18-alpine AS ui-builder
+
+# Set working directory
+WORKDIR /app/ui
+
+# Copy package files first for better layer caching
+COPY ui/package*.json ./
+
+# Install dependencies with npm ci for faster, reproducible builds
+RUN npm ci --only=production --no-audit --no-fund
+
+# Copy UI source code
+COPY ui/ ./
+
+# Build the UI (production build with optimizations)
+RUN npm run build
+
+# -----------------------------------------------------------------------------
+# STAGE 2: Go Build Stage  
+# -----------------------------------------------------------------------------
+FROM --platform=$BUILDPLATFORM golang:1.21-alpine AS go-builder
+
+# Build arguments
+ARG TARGETOS
+ARG TARGETARCH
+
+# Install git and ca-certificates for go mod download
+RUN apk add --no-cache git ca-certificates
+
+# Set working directory
+WORKDIR /app
+
+# Copy go mod files first for better layer caching
+COPY go.mod go.sum ./
+
+# Download dependencies
+RUN go mod download && go mod verify
+
+# Copy Go source code
+COPY . .
+
+# Copy built UI from previous stage
+COPY --from=ui-builder /app/ui/build ./ui/build
+
+# Build the Go binary with optimizations for target architecture
+RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build \
+    -ldflags='-w -s -extldflags "-static"' \
+    -a -installsuffix cgo \
+    -o mimir-limit-optimizer \
+    main.go
+
+# -----------------------------------------------------------------------------
+# STAGE 3: Runtime Stage (Minimal)
+# -----------------------------------------------------------------------------
+FROM --platform=$TARGETPLATFORM alpine:3.18 AS runtime
+
+# Install ca-certificates and timezone data
+RUN apk --no-cache add ca-certificates tzdata && \
+    update-ca-certificates
+
+# Create non-root user for security
+RUN addgroup -g 1001 app && \
+    adduser -u 1001 -G app -D -s /bin/sh app
+
+# Set working directory
+WORKDIR /app
+
+# Copy the binary from builder stage to standard location
+COPY --from=go-builder /app/mimir-limit-optimizer /usr/local/bin/mimir-limit-optimizer
+
+# Make binary executable
+RUN chmod +x /usr/local/bin/mimir-limit-optimizer
+
+# Create necessary directories and set permissions
+RUN mkdir -p /app/data /app/logs /app/config && \
+    chown -R app:app /app
+
+# Switch to non-root user
+USER app
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:8081/health || exit 1
+
+# Expose port
+EXPOSE 8081
+
+# Set default command - binary is now in PATH
+CMD ["mimir-limit-optimizer", "--config", "/app/config/config.yaml"]
+
+# =============================================================================
+# BUILD INSTRUCTIONS:
+# =============================================================================
+# To build this optimized image:
+# 
+# 1. Single platform build (current architecture):
+#    docker build -f Dockerfile.optimized -t mimir-optimizer:dev .
+#
+# 2. Multi-platform build (amd64 + arm64):
+#    docker buildx build -f Dockerfile.optimized \
+#      --platform linux/amd64,linux/arm64 \
+#      --build-arg VERSION=v1.0.0 \
+#      --build-arg BUILD_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ') \
+#      --build-arg GIT_COMMIT=$(git rev-parse HEAD) \
+#      -t mimir-optimizer:v1.0.0 .
+#
+# 3. Push multi-platform:
+#    docker buildx build -f Dockerfile.optimized \
+#      --platform linux/amd64,linux/arm64 \
+#      --push \
+#      -t ghcr.io/akshaydubey29/mimir-limit-optimizer:latest .
+#
+# =============================================================================
+# PERFORMANCE OPTIMIZATIONS:
+# =============================================================================
+# 1. Layer caching: Dependencies are copied and installed before source code
+# 2. Multi-stage builds: Separate build and runtime environments
+# 3. Alpine Linux: Minimal base image (~5MB)
+# 4. Static binary: No external dependencies in runtime
+# 5. Build optimizations: Disabled CGO, stripped symbols
+# 6. .dockerignore: Reduces build context significantly
+# 7. npm ci: Faster than npm install for production
+# 8. Non-root user: Security best practice
+# 9. Multi-architecture: Supports both amd64 and arm64
+# ============================================================================= 
