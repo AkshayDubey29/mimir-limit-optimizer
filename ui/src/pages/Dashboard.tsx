@@ -43,8 +43,8 @@ const Dashboard: React.FC = () => {
             { time: '20:00', count: 16 },
           ],
           tenantHealth: [
-            { name: 'Healthy', count: tenants.filter(t => t.status === 'active').length },
-            { name: 'Warning', count: tenants.filter(t => t.spike_detected).length },
+            { name: 'Healthy', count: tenantsData.tenants?.filter(t => t.status === 'active').length || 0 },
+            { name: 'Warning', count: tenantsData.tenants?.filter(t => t.spike_detected).length || 0 },
             { name: 'Error', count: 0 },
           ],
         });
@@ -56,7 +56,7 @@ const Dashboard: React.FC = () => {
     fetchData();
     const interval = setInterval(fetchData, 60000); // Refresh every minute
     return () => clearInterval(interval);
-  }, [getStatus, getTenants, tenants.length]);
+  }, [getStatus, getTenants]);
 
   if (loading && !status) {
     return (
