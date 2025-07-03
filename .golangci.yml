@@ -1,5 +1,3 @@
-version: 2
-
 run:
   timeout: 5m
 
@@ -13,13 +11,3 @@ issues:
     - docs
     - scripts
     - helm
-  max-issues-per-linter: 0
-  max-same-issues: 0
-
-linters-settings:
-  govet:
-    check-shadowing: true
-  gocyclo:
-    min-complexity: 15
-  dupl:
-    threshold: 100
