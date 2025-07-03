@@ -65,7 +65,7 @@ test-coverage: ## Run tests with coverage
 	@echo "Coverage report generated: coverage.html"
 
 .PHONY: lint
-lint: ## Run linters
+lint: build-ui ## Run linters
 	@echo "Running linters..."
 	@command -v golangci-lint >/dev/null 2>&1 || { echo "Installing golangci-lint..."; go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest; }
 	@golangci-lint run
