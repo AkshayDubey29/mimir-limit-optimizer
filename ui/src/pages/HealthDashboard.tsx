@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useApi } from '../context/ApiContext';
 import { useTheme } from '../context/ThemeContext';
 
@@ -174,7 +174,7 @@ const HealthDashboard: React.FC = () => {
   const safeResources = resources || [];
 
   // Fetch health data
-  const fetchHealthData = async () => {
+  const fetchHealthData = useCallback(async () => {
     try {
       // Try to fetch health data, but provide fallbacks if endpoints don't exist
       let healthData: HealthMetrics | null = null;
@@ -202,13 +202,13 @@ const HealthDashboard: React.FC = () => {
       // If health endpoints don't exist, create fallback data using available endpoints
       if (!healthData) {
         try {
-          const [tenantsResponse, statusResponse] = await Promise.all([
+          const [tenantsResponse] = await Promise.all([
             apiRequest('/tenants').catch(() => ({ tenants: [] })),
             apiRequest('/status').catch(() => ({ mode: 'unknown' }))
           ]);
 
           const tenants = tenantsResponse?.tenants || [];
-          const status = statusResponse || {};
+          // const status = statusResponse || {}; // Unused variable
 
           // Create synthetic health data
                      healthData = {
@@ -299,7 +299,7 @@ const HealthDashboard: React.FC = () => {
     } catch (err) {
       console.error('Error fetching health data:', err);
     }
-  };
+  }, [apiRequest]);
 
   // Auto-refresh effect
   useEffect(() => {
@@ -309,7 +309,7 @@ const HealthDashboard: React.FC = () => {
       const interval = setInterval(fetchHealthData, 30000); // Refresh every 30 seconds
       return () => clearInterval(interval);
     }
-  }, [autoRefresh]);
+  }, [autoRefresh, fetchHealthData]);
 
   // Get status color
   const getStatusColor = (status: string): string => {
