@@ -1,4 +1,4 @@
-# Mimir Limit Optimizer Configuration - PERFORMANCE OPTIMIZED
+# Mimir Limit Optimizer Configuration - REAL DATA MODE (Standalone)
 mode: dry-run
 bufferPercentage: 20.0
 updateInterval: 30s  # Faster updates for responsive dashboard
@@ -13,11 +13,77 @@ mimir:
     - querier
     - query-frontend
 
+# Fallback metrics endpoint (configure to point to your actual Mimir/Prometheus instance)
+# Example endpoints - replace with your actual Mimir/Prometheus URL:
+# metricsEndpoint: "http://prometheus-server:9090/api/v1/query"
+# metricsEndpoint: "http://mimir-query-frontend:8080/prometheus/api/v1/query"
+# metricsEndpoint: "http://localhost:9090/api/v1/query"
+metricsEndpoint: "http://prometheus-server:9090/api/v1/query"
+
 # Tenant scoping
 tenantScoping:
   skipList: []
   includeList: []
   useRegex: false
+
+# Metrics discovery - DISABLED for standalone mode
+metricsDiscovery:
+  enabled: false  # Disabled to avoid Kubernetes dependency
+  namespace: mimir
+  serviceLabelSelector: "app.kubernetes.io/name=mimir"
+  serviceNames:
+    - mimir-distributor
+    - mimir-ingester
+    - mimir-querier
+    - mimir-query-frontend
+    - mimir-query-scheduler
+    - mimir-compactor
+    - mimir-store-gateway
+    - mimir-ruler
+  metricsPath: "/metrics"
+  portName: "http-metrics"
+  port: 8080
+  
+  # Tenant discovery from real sources
+  tenantDiscovery:
+    # Configure real tenant names here (replace with your actual tenants)
+    fallbackTenants:
+      - "production-api"
+      - "staging-env"
+      - "development-cluster"
+      - "monitoring-stack"
+      - "user-analytics"
+      - "metrics-ingestion"
+      - "alerting-system"
+      - "log-aggregation"
+      - "webapp-frontend"
+      - "backend-services"
+      - "database-metrics"
+      - "cache-layer"
+      - "message-queue"
+      - "auth-service"
+      - "notification-service"
+      - "file-storage"
+      - "search-engine"
+      - "recommendation-engine"
+      - "payment-processor"
+      - "audit-logging"
+    
+    # ConfigMap names to search for tenant configurations
+    configMapNames:
+      - "mimir-runtime-overrides"
+      - "overrides"
+      - "runtime-config"
+    
+    # Disable synthetic tenant generation
+    enableSynthetic: false
+    syntheticCount: 0
+    
+    # Configure for multi-tenant Mimir (set your tenant ID)
+    metricsTenantID: ""
+    
+    # Additional tenant headers if needed
+    tenantHeaders: {}
 
 # Dynamic limits configuration
 dynamicLimits:
@@ -37,9 +103,9 @@ circuitBreaker:
   runtimeEnabled: false
   mode: auto
 
-# Health scanner configuration - NEW
+# Health scanner configuration - DISABLED for standalone mode
 healthScanner:
-  enabled: false  # Disabled for better performance - enable only if needed
+  enabled: false  # Disabled to avoid Kubernetes dependency
   timeout: 60s    # Overall scan timeout
   resourceTimeouts:
     secrets: 10s
@@ -69,6 +135,7 @@ ui:
   enabled: true
   port: 8082
 
-# Synthetic data for fast standalone mode
+# Disable synthetic data generation (KEY CHANGE)
 synthetic:
-  enabled: true 
+  enabled: false  # DISABLED - Use real data only
+  tenantCount: 0  # Not used when disabled 
