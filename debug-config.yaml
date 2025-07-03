@@ -1,11 +1,76 @@
+# Mimir Limit Optimizer - DEBUG Configuration
 mode: dry-run
 bufferPercentage: 20.0
-updateInterval: 30s
+updateInterval: 30s  # Faster updates for debugging
 
-# Use direct endpoint with tenant configuration
-metricsEndpoint: "http://query-frontend.mimir.svc.cluster.local:8080/api/v1/query?query=up"
+# Logging configuration for debugging
+logging:
+  level: debug
+  development: true
+  sampling:
+    enabled: false
+  outputPaths:
+    - stdout
+  errorOutputPaths:
+    - stderr
 
-# Metrics discovery configuration
+# Mimir cluster configuration
+mimir:
+  namespace: mimir
+  configMapName: mimir-runtime-overrides
+  triggerRollout: false
+  rolloutComponents:
+    - ingester
+    - querier
+    - query-frontend
+
+# Tenant scoping
+tenantScoping:
+  skipList: []
+  includeList: []
+  useRegex: false
+
+# Dynamic limits configuration
+dynamicLimits:
+  enabled: true
+  defaultBuffer: 20.0
+  autoDetect: true
+
+# Cost control - disabled for debugging performance
+costControl:
+  enabled: false
+  costMethod: composite
+  costPerUnit: 0.001
+
+# Circuit breaker for protection
+circuitBreaker:
+  enabled: false  # Disabled in dry-run mode
+  runtimeEnabled: false
+  mode: auto
+
+# Audit logging with debug settings
+auditLog:
+  enabled: true
+  storageType: "memory"  # Use memory for faster debugging
+  maxEntries: 1000
+  configMapName: "mimir-limit-optimizer-audit"
+  
+  # Fast retention for debugging
+  retention:
+    retentionPeriod: "24h"        # 1 day for debugging
+    maxEntries: 1000
+    maxSizeBytes: 409600          # 400KB for faster operations
+    cleanupInterval: "10m"        # Cleanup every 10 minutes
+    cleanupBatchSize: 50
+    emergencyThresholdPercent: 90.0
+
+# Web UI configuration with debug settings
+ui:
+  enabled: true
+  port: 8082
+  debug: true
+
+# Metrics discovery configuration - disabled for debugging
 metricsDiscovery:
   enabled: false
   tenantDiscovery:
@@ -16,20 +81,16 @@ metricsDiscovery:
       - "couwatch"
     enableSynthetic: false
 
-# Disable resource-intensive features for testing
-costControl:
-  enabled: false
-
-circuitBreaker:
-  enabled: false
-
-dynamicLimits:
-  enabled: true
-  defaultBuffer: 20.0
-  autoDetect: false
-
-auditLog:
-  enabled: false
-
+# Synthetic data for standalone mode
 synthetic:
-  enabled: false 
+  enabled: true
+
+# Use direct endpoint with tenant configuration
+metricsEndpoint: "http://query-frontend.mimir.svc.cluster.local:8080/api/v1/query?query=up"
+
+# Health scanner configuration
+healthScanner:
+  enabled: false  # Disable for debugging performance
+  checkInterval: 30s
+  healthCheckTimeout: 10s
+  maxAttempts: 3 

@@ -1,7 +1,7 @@
-# Mimir Limit Optimizer Configuration
+# Mimir Limit Optimizer Configuration - PERFORMANCE OPTIMIZED
 mode: dry-run
 bufferPercentage: 20.0
-updateInterval: 5m
+updateInterval: 30s  # Faster updates for responsive dashboard
 
 # Mimir cluster configuration
 mimir:
@@ -25,9 +25,9 @@ dynamicLimits:
   defaultBuffer: 20.0
   autoDetect: true
 
-# Cost control
+# Cost control - optimized for performance
 costControl:
-  enabled: true
+  enabled: false  # Disabled for better performance in standalone mode
   costMethod: composite
   costPerUnit: 0.001
 
@@ -37,23 +37,38 @@ circuitBreaker:
   runtimeEnabled: false
   mode: auto
 
-# Audit logging
+# Health scanner configuration - NEW
+healthScanner:
+  enabled: false  # Disabled for better performance - enable only if needed
+  timeout: 60s    # Overall scan timeout
+  resourceTimeouts:
+    secrets: 10s
+    deployments: 15s
+    pods: 20s
+    services: 10s
+    configmaps: 10s
+
+# Audit logging - optimized settings
 auditLog:
   enabled: true
-  storageType: "configmap"  # "memory", "configmap", or "external"
-  maxEntries: 2000         # Maximum entries (fallback limit)
+  storageType: "memory"  # Memory storage for faster operations
+  maxEntries: 1000       # Reduced for better performance
   configMapName: "mimir-limit-optimizer-audit"
   
-  # Comprehensive retention policies
+  # Fast retention policies
   retention:
-    retentionPeriod: "168h"        # 7 days (time-based retention)
-    maxEntries: 2000               # Override maxEntries above
-    maxSizeBytes: 819200           # 800KB (safe margin under 1MB ConfigMap limit)
-    cleanupInterval: "1h"          # Cleanup every hour
-    cleanupBatchSize: 100          # Process 100 entries at a time
-    emergencyThresholdPercent: 90.0 # Emergency cleanup at 90% capacity
+    retentionPeriod: "72h"        # 3 days
+    maxEntries: 1000              
+    maxSizeBytes: 409600          # 400KB for faster operations
+    cleanupInterval: "30m"        # Cleanup every 30 minutes
+    cleanupBatchSize: 50          
+    emergencyThresholdPercent: 90.0
 
-# Web UI configuration
+# Web UI configuration - performance optimized
 ui:
   enabled: true
-  port: 8082 
+  port: 8082
+
+# Synthetic data for fast standalone mode
+synthetic:
+  enabled: true 

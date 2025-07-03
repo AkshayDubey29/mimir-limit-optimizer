@@ -13,6 +13,7 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/gorilla/mux"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"k8s.io/client-go/kubernetes"
 
 	"github.com/AkshayDubey29/mimir-limit-optimizer/internal/config"
 	"github.com/AkshayDubey29/mimir-limit-optimizer/internal/controller"
@@ -26,6 +27,7 @@ type Server struct {
 	router     *mux.Router
 	httpServer *http.Server
 	uiAssets   embed.FS
+	k8sClient  kubernetes.Interface
 }
 
 // NewServer creates a new API server instance
@@ -36,10 +38,16 @@ func NewServer(controller *controller.MimirLimitController, cfg *config.Config, 
 		log:        log,
 		router:     mux.NewRouter(),
 		uiAssets:   uiAssets,
+		k8sClient:  nil, // Will be set if running in Kubernetes mode
 	}
 
 	s.setupRoutes()
 	return s
+}
+
+// SetK8sClient sets the Kubernetes client for namespace scanning
+func (s *Server) SetK8sClient(client kubernetes.Interface) {
+	s.k8sClient = client
 }
 
 // setupRoutes configures all API routes
@@ -56,9 +64,16 @@ func (s *Server) setupRoutes() {
 	api.HandleFunc("/config", s.handleConfig).Methods("GET", "POST")
 	api.HandleFunc("/metrics", s.handleMetrics).Methods("GET")
 
+	// Dashboard endpoints - NEW
+	api.HandleFunc("/dashboard", s.handleDashboardData).Methods("GET")
+
 	// Tenant endpoints
 	api.HandleFunc("/tenants", s.handleTenants).Methods("GET")
 	api.HandleFunc("/tenants/{tenant_id}", s.handleTenantDetail).Methods("GET")
+
+	// Namespace scanning endpoints - NEW
+	api.HandleFunc("/namespaces", s.handleNamespacesScan).Methods("GET")
+	api.HandleFunc("/architecture/flow", s.handleArchitectureFlow).Methods("GET")
 
 	// Analysis endpoints
 	api.HandleFunc("/diff", s.handleDiff).Methods("GET")

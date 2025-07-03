@@ -37,7 +37,7 @@ var (
 	BuildDate = "unknown"
 )
 
-//go:embed ui/build/*
+//go:embed ui/build
 var uiAssets embed.FS
 
 func init() {

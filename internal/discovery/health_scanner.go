@@ -136,81 +136,85 @@ func NewHealthScanner(client client.Client, cfg *config.Config, log logr.Logger)
 	}
 }
 
-// ScanMimirInfrastructure performs comprehensive health scan of Mimir infrastructure
+// ScanMimirInfrastructure performs a comprehensive scan of Mimir infrastructure
 func (h *HealthScanner) ScanMimirInfrastructure(ctx context.Context) (*MimirInfrastructureHealth, error) {
 	startTime := time.Now()
-	h.log.Info("starting comprehensive Mimir infrastructure health scan", "namespace", h.config.Mimir.Namespace)
+	h.log.Info("starting Mimir infrastructure health scan", "namespace", h.config.Mimir.Namespace)
 
 	var allResources []ResourceHealth
 	var componentCount ResourceTypeCount
 
-	// Scan Deployments
-	deployments, err := h.scanDeployments(ctx)
+	// Add overall timeout for the entire scan to prevent hanging
+	scanCtx, cancel := context.WithTimeout(ctx, 60*time.Second)
+	defer cancel()
+
+	// Scan Deployments with error resilience
+	deployments, err := h.scanDeployments(scanCtx)
 	if err != nil {
-		h.log.Error(err, "failed to scan deployments")
+		h.log.Error(err, "failed to scan deployments, continuing with other resources")
 	} else {
 		allResources = append(allResources, deployments...)
 		componentCount.Deployments = len(deployments)
 	}
 
-	// Scan StatefulSets
-	statefulSets, err := h.scanStatefulSets(ctx)
+	// Scan StatefulSets with error resilience
+	statefulSets, err := h.scanStatefulSets(scanCtx)
 	if err != nil {
-		h.log.Error(err, "failed to scan statefulsets")
+		h.log.Error(err, "failed to scan statefulsets, continuing with other resources")
 	} else {
 		allResources = append(allResources, statefulSets...)
 		componentCount.StatefulSets = len(statefulSets)
 	}
 
-	// Scan DaemonSets
-	daemonSets, err := h.scanDaemonSets(ctx)
+	// Scan DaemonSets with error resilience
+	daemonSets, err := h.scanDaemonSets(scanCtx)
 	if err != nil {
-		h.log.Error(err, "failed to scan daemonsets")
+		h.log.Error(err, "failed to scan daemonsets, continuing with other resources")
 	} else {
 		allResources = append(allResources, daemonSets...)
 		componentCount.DaemonSets = len(daemonSets)
 	}
 
-	// Scan Services
-	services, err := h.scanServices(ctx)
+	// Scan Services with error resilience
+	services, err := h.scanServices(scanCtx)
 	if err != nil {
-		h.log.Error(err, "failed to scan services")
+		h.log.Error(err, "failed to scan services, continuing with other resources")
 	} else {
 		allResources = append(allResources, services...)
 		componentCount.Services = len(services)
 	}
 
-	// Scan ConfigMaps
-	configMaps, err := h.scanConfigMaps(ctx)
+	// Scan ConfigMaps with error resilience
+	configMaps, err := h.scanConfigMaps(scanCtx)
 	if err != nil {
-		h.log.Error(err, "failed to scan configmaps")
+		h.log.Error(err, "failed to scan configmaps, continuing with other resources")
 	} else {
 		allResources = append(allResources, configMaps...)
 		componentCount.ConfigMaps = len(configMaps)
 	}
 
-	// Scan Secrets
-	secrets, err := h.scanSecrets(ctx)
+	// Scan Secrets with error resilience (already updated)
+	secrets, err := h.scanSecrets(scanCtx)
 	if err != nil {
-		h.log.Error(err, "failed to scan secrets")
+		h.log.Error(err, "failed to scan secrets, continuing with other resources")
 	} else {
 		allResources = append(allResources, secrets...)
 		componentCount.Secrets = len(secrets)
 	}
 
-	// Scan Pods
-	pods, err := h.scanPods(ctx)
+	// Scan Pods with error resilience
+	pods, err := h.scanPods(scanCtx)
 	if err != nil {
-		h.log.Error(err, "failed to scan pods")
+		h.log.Error(err, "failed to scan pods, continuing with other resources")
 	} else {
 		allResources = append(allResources, pods...)
 		componentCount.Pods = len(pods)
 	}
 
-	// Scan PVCs
-	pvcs, err := h.scanPVCs(ctx)
+	// Scan PVCs with error resilience
+	pvcs, err := h.scanPVCs(scanCtx)
 	if err != nil {
-		h.log.Error(err, "failed to scan pvcs")
+		h.log.Error(err, "failed to scan pvcs, continuing with other resources")
 	} else {
 		allResources = append(allResources, pvcs...)
 		componentCount.PVCs = len(pvcs)
@@ -242,16 +246,33 @@ func (h *HealthScanner) ScanMimirInfrastructure(ctx context.Context) (*MimirInfr
 		"duration", scanDuration,
 		"total_resources", len(allResources),
 		"overall_health", overallHealth,
-		"overall_score", overallScore)
+		"overall_score", overallScore,
+		"components_scanned", map[string]int{
+			"deployments":  componentCount.Deployments,
+			"statefulsets": componentCount.StatefulSets,
+			"daemonsets":   componentCount.DaemonSets,
+			"services":     componentCount.Services,
+			"configmaps":   componentCount.ConfigMaps,
+			"secrets":      componentCount.Secrets,
+			"pods":         componentCount.Pods,
+			"pvcs":         componentCount.PVCs,
+		})
 
 	return result, nil
 }
 
 // scanDeployments scans all deployments in the Mimir namespace
 func (h *HealthScanner) scanDeployments(ctx context.Context) ([]ResourceHealth, error) {
+	// Add timeout for deployments scanning
+	timeoutCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	defer cancel()
+
 	deploymentList := &appsv1.DeploymentList{}
-	err := h.client.List(ctx, deploymentList, client.InNamespace(h.config.Mimir.Namespace))
+	err := h.client.List(timeoutCtx, deploymentList, client.InNamespace(h.config.Mimir.Namespace))
 	if err != nil {
+		h.log.Error(err, "failed to list deployments",
+			"namespace", h.config.Mimir.Namespace,
+			"timeout", "15s")
 		return nil, fmt.Errorf("failed to list deployments: %w", err)
 	}
 
@@ -260,6 +281,10 @@ func (h *HealthScanner) scanDeployments(ctx context.Context) ([]ResourceHealth, 
 		resource := h.analyzeDeploymentHealth(&dep)
 		resources = append(resources, resource)
 	}
+
+	h.log.V(1).Info("successfully scanned deployments",
+		"namespace", h.config.Mimir.Namespace,
+		"count", len(resources))
 
 	return resources, nil
 }
@@ -782,10 +807,18 @@ func (h *HealthScanner) getConfigMapMetrics(cm *corev1.ConfigMap) map[string]flo
 
 // scanSecrets scans all secrets in the Mimir namespace
 func (h *HealthScanner) scanSecrets(ctx context.Context) ([]ResourceHealth, error) {
+	// Add timeout for secrets scanning to prevent hanging
+	timeoutCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
 	secretList := &corev1.SecretList{}
-	err := h.client.List(ctx, secretList, client.InNamespace(h.config.Mimir.Namespace))
+	err := h.client.List(timeoutCtx, secretList, client.InNamespace(h.config.Mimir.Namespace))
 	if err != nil {
-		return nil, fmt.Errorf("failed to list secrets: %w", err)
+		// Log the error but don't fail completely - return empty list for resilience
+		h.log.Error(err, "failed to list secrets, skipping secrets scan",
+			"namespace", h.config.Mimir.Namespace,
+			"timeout", "10s")
+		return []ResourceHealth{}, nil // Return empty list instead of failing
 	}
 
 	var resources []ResourceHealth
@@ -793,6 +826,10 @@ func (h *HealthScanner) scanSecrets(ctx context.Context) ([]ResourceHealth, erro
 		resource := h.analyzeSecretHealth(&secret)
 		resources = append(resources, resource)
 	}
+
+	h.log.V(1).Info("successfully scanned secrets",
+		"namespace", h.config.Mimir.Namespace,
+		"count", len(resources))
 
 	return resources, nil
 }
@@ -853,9 +890,16 @@ func (h *HealthScanner) getSecretMetrics(secret *corev1.Secret) map[string]float
 
 // scanPods scans all pods in the Mimir namespace
 func (h *HealthScanner) scanPods(ctx context.Context) ([]ResourceHealth, error) {
+	// Add timeout for pods scanning
+	timeoutCtx, cancel := context.WithTimeout(ctx, 20*time.Second)
+	defer cancel()
+
 	podList := &corev1.PodList{}
-	err := h.client.List(ctx, podList, client.InNamespace(h.config.Mimir.Namespace))
+	err := h.client.List(timeoutCtx, podList, client.InNamespace(h.config.Mimir.Namespace))
 	if err != nil {
+		h.log.Error(err, "failed to list pods",
+			"namespace", h.config.Mimir.Namespace,
+			"timeout", "20s")
 		return nil, fmt.Errorf("failed to list pods: %w", err)
 	}
 
@@ -864,6 +908,10 @@ func (h *HealthScanner) scanPods(ctx context.Context) ([]ResourceHealth, error) 
 		resource := h.analyzePodHealth(&pod)
 		resources = append(resources, resource)
 	}
+
+	h.log.V(1).Info("successfully scanned pods",
+		"namespace", h.config.Mimir.Namespace,
+		"count", len(resources))
 
 	return resources, nil
 }
