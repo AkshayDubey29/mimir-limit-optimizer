@@ -1,9 +1,7 @@
+version: 2
+
 run:
   timeout: 5m
-
-linters:
-  disable:
-    - typecheck  # Disable typecheck to avoid go:embed issues in CI
 
 issues:
   exclude-dirs:
