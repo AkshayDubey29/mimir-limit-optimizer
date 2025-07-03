@@ -1,0 +1,7 @@
+run:
+  skip-dirs:
+    - ui
+  timeout: 5m
+
+output:
+  format: colored-line-number
