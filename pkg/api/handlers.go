@@ -1161,7 +1161,12 @@ func (s *Server) queryEndpointForIngestion(ctx context.Context, endpoint string)
 		if err != nil {
 			continue
 		}
-		defer resp.Body.Close()
+		defer func() {
+			if err := resp.Body.Close(); err != nil {
+				// Log the error but don't fail the operation
+				s.log.Error(err, "Failed to close response body")
+			}
+		}()
 
 		if resp.StatusCode != 200 {
 			continue

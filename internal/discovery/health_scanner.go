@@ -1093,9 +1093,10 @@ func (h *HealthScanner) calculateOverallHealth(resources []ResourceHealth) (stri
 
 	for _, resource := range resources {
 		totalScore += resource.HealthScore
-		if resource.Status == "Critical" {
+		switch resource.Status {
+		case "Critical":
 			criticalCount++
-		} else if resource.Status == "Warning" {
+		case "Warning":
 			warningCount++
 		}
 	}
