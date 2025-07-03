@@ -160,8 +160,10 @@ const Dashboard: React.FC = () => {
     return num.toString();
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status?.toLowerCase()) {
+  const getStatusColor = (status: string | undefined) => {
+    if (!status) return 'text-gray-600 bg-gray-100';
+    
+    switch (status.toLowerCase()) {
       case 'running':
       case 'healthy':
       case 'active':

@@ -1,0 +1,83 @@
+# Multi-architecture Dockerfile for Mimir Limit Optimizer
+FROM --platform=$BUILDPLATFORM golang:1.21-alpine AS builder
+
+# Install build dependencies
+RUN apk add --no-cache git ca-certificates tzdata
+
+# Set working directory
+WORKDIR /app
+
+# Copy go mod files
+COPY go.mod go.sum ./
+
+# Download dependencies
+RUN go mod download && go mod verify
+
+# Copy source code
+COPY . .
+
+# Copy the built UI assets
+COPY ui/build ./ui/build
+
+# Build arguments for version info
+ARG VERSION=dev
+ARG COMMIT=unknown
+ARG BUILD_DATE=unknown
+
+# Platform arguments
+ARG TARGETOS
+ARG TARGETARCH
+
+# Build the application for the target platform
+RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build \
+    -ldflags="-w -s -X main.Version=${VERSION} -X main.Commit=${COMMIT} -X main.BuildDate=${BUILD_DATE} -extldflags '-static'" \
+    -a -installsuffix cgo \
+    -o mimir-limit-optimizer \
+    .
+
+# Final stage - distroless image
+FROM gcr.io/distroless/static:nonroot
+
+# Build arguments for labels
+ARG VERSION=dev
+ARG COMMIT=unknown
+ARG BUILD_DATE=unknown
+
+# OCI Labels for metadata
+LABEL org.opencontainers.image.title="Mimir Limit Optimizer"
+LABEL org.opencontainers.image.description="Enterprise-grade Kubernetes controller for managing per-tenant limits in Grafana Mimir"
+LABEL org.opencontainers.image.url="https://github.com/AkshayDubey29/mimir-limit-optimizer"
+LABEL org.opencontainers.image.source="https://github.com/AkshayDubey29/mimir-limit-optimizer"
+LABEL org.opencontainers.image.version="${VERSION}"
+LABEL org.opencontainers.image.revision="${COMMIT}"
+LABEL org.opencontainers.image.created="${BUILD_DATE}"
+LABEL org.opencontainers.image.licenses="Apache-2.0"
+LABEL org.opencontainers.image.vendor="Akshay Dubey"
+LABEL org.opencontainers.image.authors="Akshay Dubey <akshay@example.com>"
+
+# Copy the binary from builder stage
+COPY --from=builder /app/mimir-limit-optimizer /usr/local/bin/mimir-limit-optimizer
+
+# Copy the built UI assets
+COPY --from=builder /app/ui/build /app/ui/build
+
+# Use non-root user
+USER 65534:65534
+
+# Set working directory
+WORKDIR /
+
+# Environment variables for runtime configuration
+ENV TZ=UTC
+ENV GOGC=50
+ENV GOMAXPROCS=2
+
+# Expose metrics port and UI port
+EXPOSE 8080 8082
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+    CMD ["/usr/local/bin/mimir-limit-optimizer", "--health-check"]
+
+# Set entrypoint
+ENTRYPOINT ["/usr/local/bin/mimir-limit-optimizer"] 

@@ -12,8 +12,6 @@ import (
 
 	"github.com/gorilla/mux"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/client-go/dynamic"
 
 	"github.com/AkshayDubey29/mimir-limit-optimizer/internal/auditlog"
 	"github.com/AkshayDubey29/mimir-limit-optimizer/internal/discovery"
@@ -1583,7 +1581,7 @@ func (s *Server) handleDashboardData(w http.ResponseWriter, r *http.Request) {
 			"skipped_tenants":   len(skipped),
 		},
 		"tenants": map[string]interface{}{
-			"total_tenants":    len(additionalTenants),
+			"total_tenants":     len(additionalTenants),
 			"monitored_tenants": len(monitored),
 			"skipped_tenants":   len(skipped),
 			"tenant_list":       tenantInfos,
@@ -1599,8 +1597,8 @@ func (s *Server) handleDashboardData(w http.ResponseWriter, r *http.Request) {
 	writeStart := time.Now()
 	s.writeJSON(w, dashboardData)
 	totalDuration := time.Since(startTime)
-	s.log.Info("dashboard data response sent", 
-		"write_duration", time.Since(writeStart), 
+	s.log.Info("dashboard data response sent",
+		"write_duration", time.Since(writeStart),
 		"total_duration", totalDuration)
 }
 
@@ -1616,16 +1614,16 @@ func (s *Server) handleDashboardData(w http.ResponseWriter, r *http.Request) {
 func (s *Server) getNamespaceData(ctx context.Context) map[string]interface{} {
 	if s.k8sClient == nil {
 		s.log.Info("using synthetic namespace data (no k8s client)")
-		
+
 		// Generate more realistic synthetic namespace data
 		mimirNamespaces := []map[string]interface{}{
 			{
-				"name": "mimir", 
-				"status": "Active", 
-				"age": "15d",
-				"health_score": 95.2,
+				"name":           "mimir",
+				"status":         "Active",
+				"age":            "15d",
+				"health_score":   95.2,
 				"ingestion_rate": 12500.0,
-				"active_series": 450000,
+				"active_series":  450000,
 				"resource_count": map[string]int{
 					"pods": 15, "services": 8, "deployments": 6, "configmaps": 12,
 				},
@@ -1638,12 +1636,12 @@ func (s *Server) getNamespaceData(ctx context.Context) map[string]interface{} {
 				},
 			},
 			{
-				"name": "mimir-system", 
-				"status": "Active", 
-				"age": "15d",
-				"health_score": 98.5,
+				"name":           "mimir-system",
+				"status":         "Active",
+				"age":            "15d",
+				"health_score":   98.5,
 				"ingestion_rate": 2500.0,
-				"active_series": 25000,
+				"active_series":  25000,
 				"resource_count": map[string]int{
 					"pods": 3, "services": 2, "deployments": 2, "configmaps": 4,
 				},
@@ -1653,12 +1651,12 @@ func (s *Server) getNamespaceData(ctx context.Context) map[string]interface{} {
 				},
 			},
 			{
-				"name": "mimir-monitoring", 
-				"status": "Active", 
-				"age": "15d",
-				"health_score": 92.8,
+				"name":           "mimir-monitoring",
+				"status":         "Active",
+				"age":            "15d",
+				"health_score":   92.8,
 				"ingestion_rate": 1200.0,
-				"active_series": 15000,
+				"active_series":  15000,
 				"resource_count": map[string]int{
 					"pods": 5, "services": 3, "deployments": 3, "configmaps": 6,
 				},
@@ -1668,12 +1666,12 @@ func (s *Server) getNamespaceData(ctx context.Context) map[string]interface{} {
 				},
 			},
 			{
-				"name": "kube-system", 
-				"status": "Active", 
-				"age": "30d",
-				"health_score": 89.2,
+				"name":           "kube-system",
+				"status":         "Active",
+				"age":            "30d",
+				"health_score":   89.2,
 				"ingestion_rate": 800.0,
-				"active_series": 8000,
+				"active_series":  8000,
 				"resource_count": map[string]int{
 					"pods": 12, "services": 6, "deployments": 8, "configmaps": 15,
 				},
@@ -1683,12 +1681,12 @@ func (s *Server) getNamespaceData(ctx context.Context) map[string]interface{} {
 				},
 			},
 			{
-				"name": "default", 
-				"status": "Active", 
-				"age": "30d",
-				"health_score": 85.0,
+				"name":           "default",
+				"status":         "Active",
+				"age":            "30d",
+				"health_score":   85.0,
 				"ingestion_rate": 300.0,
-				"active_series": 3000,
+				"active_series":  3000,
 				"resource_count": map[string]int{
 					"pods": 2, "services": 1, "deployments": 1, "configmaps": 2,
 				},
@@ -1699,20 +1697,20 @@ func (s *Server) getNamespaceData(ctx context.Context) map[string]interface{} {
 		}
 
 		return map[string]interface{}{
-			"total": len(mimirNamespaces),
-			"namespaces": mimirNamespaces,
-			"data_source": "synthetic",
-			"scan_type": "comprehensive_mimir_infrastructure",
-			"last_scan": time.Now().Format(time.RFC3339),
+			"total":          len(mimirNamespaces),
+			"namespaces":     mimirNamespaces,
+			"data_source":    "synthetic",
+			"scan_type":      "comprehensive_mimir_infrastructure",
+			"last_scan":      time.Now().Format(time.RFC3339),
 			"mimir_specific": true,
 			"summary": map[string]interface{}{
-				"total_pods": 37,
-				"total_services": 20,
-				"total_deployments": 20,
+				"total_pods":             37,
+				"total_services":         20,
+				"total_deployments":      20,
 				"total_mimir_components": 12,
-				"total_ingestion_rate": 17300.0,
-				"total_active_series": 551000,
-				"average_health_score": 92.14,
+				"total_ingestion_rate":   17300.0,
+				"total_active_series":    551000,
+				"average_health_score":   92.14,
 			},
 		}
 	}
@@ -1729,35 +1727,35 @@ func (s *Server) getNamespaceData(ctx context.Context) map[string]interface{} {
 	totalServices := 0
 	totalIngestionRate := 0.0
 	totalActiveSeries := int64(0)
-	
+
 	for _, ns := range namespaces.Items {
 		// Get pods in this namespace
 		pods, _ := s.k8sClient.CoreV1().Pods(ns.Name).List(ctx, metav1.ListOptions{})
-		
-		// Get services in this namespace  
+
+		// Get services in this namespace
 		services, _ := s.k8sClient.CoreV1().Services(ns.Name).List(ctx, metav1.ListOptions{})
-		
+
 		// Get deployments in this namespace
 		deployments, _ := s.k8sClient.AppsV1().Deployments(ns.Name).List(ctx, metav1.ListOptions{})
-		
+
 		// Get configmaps in this namespace
 		configMaps, _ := s.k8sClient.CoreV1().ConfigMaps(ns.Name).List(ctx, metav1.ListOptions{})
-		
+
 		podCount := len(pods.Items)
 		serviceCount := len(services.Items)
 		deploymentCount := len(deployments.Items)
 		configMapCount := len(configMaps.Items)
-		
+
 		totalPods += podCount
 		totalServices += serviceCount
-		
+
 		// Calculate estimated metrics based on namespace activity
 		estimatedIngestionRate := float64(podCount * 100) // 100 metrics/sec per pod
 		estimatedActiveSeries := int64(podCount * 1000)   // 1000 series per pod
-		
+
 		totalIngestionRate += estimatedIngestionRate
 		totalActiveSeries += estimatedActiveSeries
-		
+
 		// Calculate health score based on pod readiness
 		healthScore := 100.0
 		if podCount > 0 {
@@ -1769,26 +1767,26 @@ func (s *Server) getNamespaceData(ctx context.Context) map[string]interface{} {
 			}
 			healthScore = (float64(readyPods) / float64(podCount)) * 100
 		}
-		
+
 		// Identify Mimir components
 		var mimirComponents []map[string]interface{}
 		for _, deployment := range deployments.Items {
-			if strings.Contains(deployment.Name, "mimir") || 
-			   strings.Contains(deployment.Name, "distributor") ||
-			   strings.Contains(deployment.Name, "ingester") ||
-			   strings.Contains(deployment.Name, "querier") ||
-			   strings.Contains(deployment.Name, "query-frontend") ||
-			   strings.Contains(deployment.Name, "store-gateway") ||
-			   strings.Contains(deployment.Name, "compactor") {
-				
+			if strings.Contains(deployment.Name, "mimir") ||
+				strings.Contains(deployment.Name, "distributor") ||
+				strings.Contains(deployment.Name, "ingester") ||
+				strings.Contains(deployment.Name, "querier") ||
+				strings.Contains(deployment.Name, "query-frontend") ||
+				strings.Contains(deployment.Name, "store-gateway") ||
+				strings.Contains(deployment.Name, "compactor") {
+
 				image := "unknown"
 				if len(deployment.Spec.Template.Spec.Containers) > 0 {
 					image = deployment.Spec.Template.Spec.Containers[0].Image
 				}
-				
+
 				mimirComponents = append(mimirComponents, map[string]interface{}{
 					"name":           deployment.Name,
-					"type":           "Deployment", 
+					"type":           "Deployment",
 					"status":         string(deployment.Status.Conditions[0].Type),
 					"replicas":       deployment.Status.Replicas,
 					"ready_replicas": deployment.Status.ReadyReplicas,
@@ -1796,14 +1794,14 @@ func (s *Server) getNamespaceData(ctx context.Context) map[string]interface{} {
 				})
 			}
 		}
-		
+
 		namespaceInfo := map[string]interface{}{
-			"name":   ns.Name,
-			"status": string(ns.Status.Phase),
-			"age":    time.Since(ns.CreationTimestamp.Time).String(),
-			"health_score": healthScore,
+			"name":           ns.Name,
+			"status":         string(ns.Status.Phase),
+			"age":            time.Since(ns.CreationTimestamp.Time).String(),
+			"health_score":   healthScore,
 			"ingestion_rate": estimatedIngestionRate,
-			"active_series": estimatedActiveSeries,
+			"active_series":  estimatedActiveSeries,
 			"resource_count": map[string]int{
 				"pods":        podCount,
 				"services":    serviceCount,
@@ -1812,23 +1810,23 @@ func (s *Server) getNamespaceData(ctx context.Context) map[string]interface{} {
 			},
 			"mimir_components": mimirComponents,
 		}
-		
+
 		namespaceList = append(namespaceList, namespaceInfo)
 	}
 
 	return map[string]interface{}{
-		"total":       len(namespaceList),
-		"namespaces":  namespaceList,
-		"data_source": "kubernetes",
-		"scan_type":   "real_cluster_scan",
-		"last_scan":   time.Now().Format(time.RFC3339),
+		"total":          len(namespaceList),
+		"namespaces":     namespaceList,
+		"data_source":    "kubernetes",
+		"scan_type":      "real_cluster_scan",
+		"last_scan":      time.Now().Format(time.RFC3339),
 		"mimir_specific": false,
 		"summary": map[string]interface{}{
-			"total_pods":             totalPods,
-			"total_services":         totalServices,
-			"total_ingestion_rate":   totalIngestionRate,
-			"total_active_series":    totalActiveSeries,
-			"namespace_count":        len(namespaceList),
+			"total_pods":           totalPods,
+			"total_services":       totalServices,
+			"total_ingestion_rate": totalIngestionRate,
+			"total_active_series":  totalActiveSeries,
+			"namespace_count":      len(namespaceList),
 		},
 	}
 }
@@ -1840,47 +1838,47 @@ func (s *Server) getArchitectureFlow(ctx context.Context) map[string]interface{}
 		return map[string]interface{}{
 			"flow": []map[string]interface{}{
 				{
-					"id": "distributor",
-					"name": "Mimir Distributor", 
-					"type": "ingestion",
-					"status": "healthy",
-					"connections": []string{"ingester", "query-frontend"},
-					"metrics": map[string]interface{}{"ingestion_rate": 12500, "active_series": 45000},
+					"id":          "distributor",
+					"name":        "Mimir Distributor",
+					"type":        "ingestion",
+					"status":      "healthy",
+					"connections": []string{},
+					"metrics":     map[string]interface{}{"ingestion_rate": 12500, "active_series": 45000},
 				},
 				{
-					"id": "ingester",
-					"name": "Mimir Ingester",
-					"type": "storage", 
-					"status": "healthy",
-					"connections": []string{"store-gateway"},
-					"metrics": map[string]interface{}{"samples_per_sec": 8750, "memory_usage": 85.2},
+					"id":          "ingester",
+					"name":        "Mimir Ingester",
+					"type":        "storage",
+					"status":      "healthy",
+					"connections": []string{},
+					"metrics":     map[string]interface{}{"samples_per_sec": 8750, "memory_usage": 85.2},
 				},
 				{
-					"id": "query-frontend",
-					"name": "Query Frontend",
-					"type": "query",
-					"status": "healthy", 
-					"connections": []string{"querier"},
-					"metrics": map[string]interface{}{"queries_per_sec": 125, "avg_latency_ms": 45},
+					"id":          "query-frontend",
+					"name":        "Query Frontend",
+					"type":        "query",
+					"status":      "healthy",
+					"connections": []string{},
+					"metrics":     map[string]interface{}{"queries_per_sec": 125, "avg_latency_ms": 45},
 				},
 				{
-					"id": "querier",
-					"name": "Querier",
-					"type": "query",
-					"status": "healthy",
-					"connections": []string{"store-gateway"},
-					"metrics": map[string]interface{}{"active_queries": 8, "cache_hit_rate": 92.5},
+					"id":          "querier",
+					"name":        "Querier",
+					"type":        "query",
+					"status":      "healthy",
+					"connections": []string{},
+					"metrics":     map[string]interface{}{"active_queries": 8, "cache_hit_rate": 92.5},
 				},
 				{
-					"id": "store-gateway", 
-					"name": "Store Gateway",
-					"type": "storage",
-					"status": "healthy",
-					"connections": [],
-					"metrics": map[string]interface{}{"blocks_loaded": 1250, "query_latency_ms": 23},
+					"id":          "store-gateway",
+					"name":        "Store Gateway",
+					"type":        "storage",
+					"status":      "healthy",
+					"connections": []string{},
+					"metrics":     map[string]interface{}{"blocks_loaded": 1250, "query_latency_ms": 23},
 				},
-			],
-			"components": 5,
+			},
+			"components":  5,
 			"data_source": "synthetic",
 			"live_status": "simulated",
 		}
@@ -1893,28 +1891,28 @@ func (s *Server) getArchitectureFlow(ctx context.Context) map[string]interface{}
 // buildRealArchitectureFlow builds architecture flow from real Kubernetes data
 func (s *Server) buildRealArchitectureFlow(ctx context.Context) map[string]interface{} {
 	components := []map[string]interface{}{}
-	
+
 	// Scan for Mimir components in the configured namespace
 	namespace := s.config.Mimir.Namespace
-	
+
 	// Look for common Mimir deployments
 	mimirComponents := []string{
-		"mimir-distributor", "mimir-ingester", "mimir-querier", 
+		"mimir-distributor", "mimir-ingester", "mimir-querier",
 		"mimir-query-frontend", "mimir-store-gateway", "mimir-compactor",
 		"mimir-ruler", "mimir-alertmanager",
 	}
-	
+
 	for _, componentName := range mimirComponents {
 		deployment, err := s.k8sClient.AppsV1().Deployments(namespace).Get(ctx, componentName, metav1.GetOptions{})
 		if err != nil {
 			continue // Component not found, skip
 		}
-		
+
 		status := "healthy"
 		if deployment.Status.ReadyReplicas < deployment.Status.Replicas {
 			status = "degraded"
 		}
-		
+
 		components = append(components, map[string]interface{}{
 			"id":     componentName,
 			"name":   componentName,
@@ -1927,7 +1925,7 @@ func (s *Server) buildRealArchitectureFlow(ctx context.Context) map[string]inter
 			"connections": s.getComponentConnections(componentName),
 		})
 	}
-	
+
 	return map[string]interface{}{
 		"flow":        components,
 		"components":  len(components),
@@ -1962,7 +1960,7 @@ func (s *Server) getComponentConnections(componentName string) []string {
 		"mimir-ingester":       {"mimir-store-gateway"},
 		"mimir-compactor":      {"mimir-store-gateway"},
 	}
-	
+
 	if conns, exists := connections[componentName]; exists {
 		return conns
 	}
@@ -1973,35 +1971,35 @@ func (s *Server) getComponentConnections(componentName string) []string {
 func (s *Server) generateHealthMetrics(ctx context.Context) map[string]interface{} {
 	// Generate synthetic ingestion capacity data
 	ingestionCapacity := map[string]interface{}{
-		"current_ingestion_rate":  12500,  // samples/sec
-		"max_ingestion_capacity":  50000,  // samples/sec
-		"capacity_utilization":    25.0,   // percentage
-		"available_capacity":      37500,  // samples/sec
-		"sustainable_hours":       24.0,   // hours
-		"burst_capacity":          75000,  // samples/sec
-		"ingestion_efficiency":    97.8,   // percentage
+		"current_ingestion_rate": 12500, // samples/sec
+		"max_ingestion_capacity": 50000, // samples/sec
+		"capacity_utilization":   25.0,  // percentage
+		"available_capacity":     37500, // samples/sec
+		"sustainable_hours":      24.0,  // hours
+		"burst_capacity":         75000, // samples/sec
+		"ingestion_efficiency":   97.8,  // percentage
 		"data_source":            "synthetic",
 		"tenant_count":           3,
 		"active_series":          45000,
 		"calculations": map[string]string{
-			"current_ingestion_rate":  "Estimated based on 3 synthetic tenants",
-			"max_ingestion_capacity":  "Calculated from cluster resources",
-			"capacity_utilization":    "Current rate / Max capacity * 100",
-			"available_capacity":      "Max capacity - Current rate",
-			"sustainable_hours":       "Based on current resource consumption",
-			"burst_capacity":          "150% of max capacity for short bursts",
-			"ingestion_efficiency":    "Successful ingestion rate",
+			"current_ingestion_rate": "Estimated based on 3 synthetic tenants",
+			"max_ingestion_capacity": "Calculated from cluster resources",
+			"capacity_utilization":   "Current rate / Max capacity * 100",
+			"available_capacity":     "Max capacity - Current rate",
+			"sustainable_hours":      "Based on current resource consumption",
+			"burst_capacity":         "150% of max capacity for short bursts",
+			"ingestion_efficiency":   "Successful ingestion rate",
 		},
 		"metadata": map[string]string{
 			"calculation_timestamp": time.Now().Format(time.RFC3339),
-			"metrics_source":       "synthetic_generator",
-			"estimation_method":    "resource_based",
+			"metrics_source":        "synthetic_generator",
+			"estimation_method":     "resource_based",
 		},
 	}
-	
+
 	return map[string]interface{}{
-		"overall_health":     "Healthy",
-		"overall_score":      94.5,
+		"overall_health": "Healthy",
+		"overall_score":  94.5,
 		"health_summary": map[string]int{
 			"healthy":  5,
 			"warning":  1,
@@ -2019,18 +2017,18 @@ func (s *Server) generateHealthMetrics(ctx context.Context) map[string]interface
 			"pvcs":         4,
 		},
 		"ingestion_capacity":   ingestionCapacity,
-		"last_scan_time":      time.Now().Add(-30 * time.Second),
-		"scan_duration_ms":    1250,
-		"alert_count":         2,
+		"last_scan_time":       time.Now().Add(-30 * time.Second),
+		"scan_duration_ms":     1250,
+		"alert_count":          2,
 		"recommendation_count": 5,
 		"resource_breakdown": map[string]interface{}{
-			"cpu_usage":    map[string]float64{"total": 2.4, "limit": 8.0, "percentage": 30.0},
-			"memory_usage": map[string]float64{"total": 6.2, "limit": 16.0, "percentage": 38.8},
+			"cpu_usage":     map[string]float64{"total": 2.4, "limit": 8.0, "percentage": 30.0},
+			"memory_usage":  map[string]float64{"total": 6.2, "limit": 16.0, "percentage": 38.8},
 			"storage_usage": map[string]float64{"total": 45.6, "limit": 100.0, "percentage": 45.6},
 		},
 		"trend_data": map[string]interface{}{
-			"cpu_trend":    []float64{25.2, 28.1, 30.0, 29.5, 30.0},
-			"memory_trend": []float64{35.5, 37.2, 38.8, 38.1, 38.8},
+			"cpu_trend":       []float64{25.2, 28.1, 30.0, 29.5, 30.0},
+			"memory_trend":    []float64{35.5, 37.2, 38.8, 38.1, 38.8},
 			"ingestion_trend": []int{11000, 11500, 12000, 12200, 12500},
 		},
 	}
@@ -2072,7 +2070,7 @@ func (s *Server) generateAIRecommendations() []map[string]interface{} {
 			"created_at":  time.Now().Add(-30 * time.Minute),
 		},
 		{
-			"id":          "rec-002", 
+			"id":          "rec-002",
 			"priority":    "Medium",
 			"category":    "Scalability",
 			"title":       "Scale Query Frontend",
@@ -2083,7 +2081,7 @@ func (s *Server) generateAIRecommendations() []map[string]interface{} {
 		},
 		{
 			"id":          "rec-003",
-			"priority":    "Low", 
+			"priority":    "Low",
 			"category":    "Cost",
 			"title":       "Optimize Storage",
 			"description": "Configure compaction to reduce storage costs",
@@ -2098,26 +2096,26 @@ func (s *Server) generateAIRecommendations() []map[string]interface{} {
 func (s *Server) getResourceHealthList(ctx context.Context) []map[string]interface{} {
 	return []map[string]interface{}{
 		{
-			"name":      "mimir-distributor",
-			"namespace": "mimir",
-			"kind":      "Deployment",
-			"status":    "Healthy",
+			"name":         "mimir-distributor",
+			"namespace":    "mimir",
+			"kind":         "Deployment",
+			"status":       "Healthy",
 			"health_score": 95.2,
-			"replicas": map[string]int{"desired": 3, "ready": 3, "available": 3},
+			"replicas":     map[string]int{"desired": 3, "ready": 3, "available": 3},
 			"resource_usage": map[string]interface{}{
 				"cpu_usage": 45.2, "memory_usage": 62.8,
 				"cpu_limit": "500m", "memory_limit": "1Gi",
 			},
-			"age": "5d",
+			"age":    "5d",
 			"issues": []map[string]interface{}{},
 		},
 		{
-			"name":      "mimir-ingester",
-			"namespace": "mimir", 
-			"kind":      "StatefulSet",
-			"status":    "Warning",
+			"name":         "mimir-ingester",
+			"namespace":    "mimir",
+			"kind":         "StatefulSet",
+			"status":       "Warning",
 			"health_score": 82.1,
-			"replicas": map[string]int{"desired": 3, "ready": 3, "available": 2},
+			"replicas":     map[string]int{"desired": 3, "ready": 3, "available": 2},
 			"resource_usage": map[string]interface{}{
 				"cpu_usage": 78.5, "memory_usage": 87.2,
 				"cpu_limit": "1000m", "memory_limit": "2Gi",
@@ -2125,9 +2123,9 @@ func (s *Server) getResourceHealthList(ctx context.Context) []map[string]interfa
 			"age": "5d",
 			"issues": []map[string]interface{}{
 				{
-					"severity": "Warning",
-					"category": "Resource",
-					"title": "High Memory Usage",
+					"severity":    "Warning",
+					"category":    "Resource",
+					"title":       "High Memory Usage",
 					"description": "Memory usage above 85% threshold",
 				},
 			},
@@ -2138,10 +2136,10 @@ func (s *Server) getResourceHealthList(ctx context.Context) []map[string]interfa
 // getSpecificResourceHealth returns detailed health for a specific resource
 func (s *Server) getSpecificResourceHealth(ctx context.Context, kind, name string) map[string]interface{} {
 	return map[string]interface{}{
-		"name":      name,
-		"kind":      kind,
-		"namespace": "mimir",
-		"status":    "Healthy",
+		"name":         name,
+		"kind":         kind,
+		"namespace":    "mimir",
+		"status":       "Healthy",
 		"health_score": 94.7,
 		"detailed_metrics": map[string]interface{}{
 			"cpu_usage":    45.2,
@@ -2151,17 +2149,17 @@ func (s *Server) getSpecificResourceHealth(ctx context.Context, kind, name strin
 		},
 		"conditions": []map[string]interface{}{
 			{
-				"type": "Available",
-				"status": "True",
-				"reason": "MinimumReplicasAvailable",
+				"type":    "Available",
+				"status":  "True",
+				"reason":  "MinimumReplicasAvailable",
 				"message": "Deployment has minimum availability",
 			},
 		},
 		"events": []map[string]interface{}{
 			{
-				"type": "Normal",
-				"reason": "ScalingReplicaSet", 
-				"message": "Scaled up replica set",
+				"type":      "Normal",
+				"reason":    "ScalingReplicaSet",
+				"message":   "Scaled up replica set",
 				"timestamp": time.Now().Add(-2 * time.Hour),
 			},
 		},
@@ -2181,21 +2179,21 @@ func (s *Server) generateInfrastructureHealth(ctx context.Context) map[string]in
 			"mimir-store-gateway":  map[string]interface{}{"status": "Healthy", "score": 89.7},
 		},
 		"cluster_info": map[string]interface{}{
-			"node_count":    3,
-			"total_pods":    18,
-			"total_services": 8,
+			"node_count":         3,
+			"total_pods":         18,
+			"total_services":     8,
 			"kubernetes_version": "v1.28.3",
 		},
 		"resource_utilization": map[string]interface{}{
-			"cpu_utilization":    30.0,
-			"memory_utilization": 38.8,
+			"cpu_utilization":     30.0,
+			"memory_utilization":  38.8,
 			"storage_utilization": 45.6,
 		},
 		"performance_metrics": map[string]interface{}{
-			"ingestion_rate":     12500,
-			"query_rate":         125,
-			"avg_query_latency":  45,
-			"error_rate":         0.02,
+			"ingestion_rate":    12500,
+			"query_rate":        125,
+			"avg_query_latency": 45,
+			"error_rate":        0.02,
 		},
 	}
 }
@@ -2203,48 +2201,48 @@ func (s *Server) generateInfrastructureHealth(ctx context.Context) map[string]in
 // performInfrastructureScan performs comprehensive infrastructure scanning
 func (s *Server) performInfrastructureScan(ctx context.Context) map[string]interface{} {
 	scanID := fmt.Sprintf("scan-%d", time.Now().Unix())
-	
+
 	return map[string]interface{}{
-		"scan_id": scanID,
-		"namespace": s.config.Mimir.Namespace,
+		"scan_id":       scanID,
+		"namespace":     s.config.Mimir.Namespace,
 		"scan_duration": "2.1s",
-		"last_scan": time.Now(),
+		"last_scan":     time.Now(),
 		"components": map[string]interface{}{
 			"mimir-distributor": map[string]interface{}{
-				"name": "mimir-distributor",
-				"type": "Deployment",
-				"role": "ingestion",
-				"status": "healthy",
-				"replicas": 3,
+				"name":           "mimir-distributor",
+				"type":           "Deployment",
+				"role":           "ingestion",
+				"status":         "healthy",
+				"replicas":       3,
 				"ready_replicas": 3,
 				"services": []map[string]interface{}{
 					{"name": "mimir-distributor", "type": "ClusterIP", "ports": map[string]int{"http": 8080, "grpc": 9095}},
 				},
 				"health": map[string]interface{}{
-					"status": "healthy",
-					"issues": []string{},
+					"status":     "healthy",
+					"issues":     []string{},
 					"last_check": time.Now(),
 				},
 			},
 		},
 		"tenants": map[string]interface{}{
 			"synthetic-tenant-1": map[string]interface{}{
-				"tenant_id": "synthetic-tenant-1",
-				"source": "synthetic",
-				"limits": map[string]interface{}{"ingestion_rate": 5000, "max_series": 15000},
+				"tenant_id":     "synthetic-tenant-1",
+				"source":        "synthetic",
+				"limits":        map[string]interface{}{"ingestion_rate": 5000, "max_series": 15000},
 				"current_usage": map[string]float64{"ingestion_rate": 4200, "active_series": 12500},
-				"status": "active",
-				"last_seen": time.Now(),
+				"status":        "active",
+				"last_seen":     time.Now(),
 			},
 		},
 		"recommendations": []map[string]interface{}{
 			{
-				"id": "rec-scan-001",
-				"type": "optimization",
-				"priority": "medium",
-				"title": "Memory Optimization",
+				"id":          "rec-scan-001",
+				"type":        "optimization",
+				"priority":    "medium",
+				"title":       "Memory Optimization",
 				"description": "Optimize memory allocation for better performance",
-				"component": "mimir-ingester",
+				"component":   "mimir-ingester",
 			},
 		},
 	}
@@ -2254,11 +2252,11 @@ func (s *Server) performInfrastructureScan(ctx context.Context) map[string]inter
 func (s *Server) analyzeInfrastructureComponents(ctx context.Context) map[string]interface{} {
 	return map[string]interface{}{
 		"mimir-distributor": map[string]interface{}{
-			"name": "mimir-distributor",
-			"type": "Deployment", 
-			"role": "ingestion",
-			"status": "healthy",
-			"replicas": 3,
+			"name":           "mimir-distributor",
+			"type":           "Deployment",
+			"role":           "ingestion",
+			"status":         "healthy",
+			"replicas":       3,
 			"ready_replicas": 3,
 			"configuration": map[string]interface{}{
 				"image": "grafana/mimir:2.10.0",
@@ -2271,18 +2269,18 @@ func (s *Server) analyzeInfrastructureComponents(ctx context.Context) map[string
 			"health": map[string]interface{}{
 				"status": "healthy",
 				"metrics": map[string]float64{
-					"cpu_usage": 45.2,
-					"memory_usage": 62.8,
+					"cpu_usage":      45.2,
+					"memory_usage":   62.8,
 					"ingestion_rate": 4200,
 				},
 			},
 		},
 		"mimir-ingester": map[string]interface{}{
-			"name": "mimir-ingester",
-			"type": "StatefulSet",
-			"role": "storage", 
-			"status": "warning",
-			"replicas": 3,
+			"name":           "mimir-ingester",
+			"type":           "StatefulSet",
+			"role":           "storage",
+			"status":         "warning",
+			"replicas":       3,
 			"ready_replicas": 3,
 			"configuration": map[string]interface{}{
 				"image": "grafana/mimir:2.10.0",
@@ -2295,8 +2293,8 @@ func (s *Server) analyzeInfrastructureComponents(ctx context.Context) map[string
 				"status": "warning",
 				"issues": []string{"High memory usage"},
 				"metrics": map[string]float64{
-					"cpu_usage": 78.5,
-					"memory_usage": 87.2,
+					"cpu_usage":     78.5,
+					"memory_usage":  87.2,
 					"active_series": 45000,
 				},
 			},
@@ -2309,44 +2307,44 @@ func (s *Server) analyzeTenantsInfrastructure(ctx context.Context) map[string]in
 	return map[string]interface{}{
 		"synthetic-tenant-1": map[string]interface{}{
 			"tenant_id": "synthetic-tenant-1",
-			"source": "synthetic",
+			"source":    "synthetic",
 			"limits": map[string]interface{}{
-				"ingestion_rate": 5000,
-				"max_series": 15000,
+				"ingestion_rate":     5000,
+				"max_series":         15000,
 				"max_query_lookback": "7d",
 			},
 			"current_usage": map[string]interface{}{
 				"ingestion_rate": 4200,
-				"active_series": 12500,
-				"storage_gb": 5.2,
+				"active_series":  12500,
+				"storage_gb":     5.2,
 			},
 			"recommended_limits": map[string]interface{}{
 				"ingestion_rate": 4500,
-				"max_series": 13500,
+				"max_series":     13500,
 			},
 			"status": "active",
 			"infrastructure_impact": map[string]interface{}{
-				"cpu_usage": 1.2,
-				"memory_usage": 2.1,
+				"cpu_usage":     1.2,
+				"memory_usage":  2.1,
 				"storage_usage": 5.2,
 			},
 		},
 		"synthetic-tenant-2": map[string]interface{}{
 			"tenant_id": "synthetic-tenant-2",
-			"source": "synthetic", 
+			"source":    "synthetic",
 			"limits": map[string]interface{}{
 				"ingestion_rate": 3000,
-				"max_series": 10000,
+				"max_series":     10000,
 			},
 			"current_usage": map[string]interface{}{
 				"ingestion_rate": 2800,
-				"active_series": 9200,
-				"storage_gb": 3.8,
+				"active_series":  9200,
+				"storage_gb":     3.8,
 			},
 			"status": "active",
 			"infrastructure_impact": map[string]interface{}{
-				"cpu_usage": 0.8,
-				"memory_usage": 1.5,
+				"cpu_usage":     0.8,
+				"memory_usage":  1.5,
 				"storage_usage": 3.8,
 			},
 		},
@@ -2380,18 +2378,18 @@ func (s *Server) generateInfrastructureAnalytics(ctx context.Context) map[string
 			"active": 3, "inactive": 0, "synthetic": 3,
 		},
 		"metrics_endpoints": map[string]interface{}{
-			"total": 8, "accessible": 8, 
+			"total": 8, "accessible": 8,
 			"by_role": map[string]int{
 				"ingestion": 3, "query": 3, "storage": 2,
 			},
 		},
 		"recommendations": map[string]interface{}{
 			"by_priority": map[string]int{"high": 1, "medium": 2, "low": 2},
-			"by_type": map[string]int{"performance": 2, "cost": 2, "scalability": 1},
-			"critical": 0,
+			"by_type":     map[string]int{"performance": 2, "cost": 2, "scalability": 1},
+			"critical":    0,
 		},
 		"resource_utilization": map[string]interface{}{
-			"total_pods": 18, "total_services": 8, 
+			"total_pods": 18, "total_services": 8,
 			"total_config_maps": 12, "total_secrets": 6,
 		},
 		"performance_trends": map[string]interface{}{
@@ -2402,4 +2400,78 @@ func (s *Server) generateInfrastructureAnalytics(ctx context.Context) map[string
 		},
 		"last_scan": time.Now().Add(-30 * time.Second),
 	}
+}
+
+// generateSyntheticNamespaceData generates synthetic namespace data for standalone mode
+func (s *Server) generateSyntheticNamespaceData() map[string]interface{} {
+	mimirNamespaces := []map[string]interface{}{
+		{
+			"name":           "mimir",
+			"status":         "Active",
+			"age":            "15d",
+			"health_score":   95.2,
+			"ingestion_rate": 12500.0,
+			"active_series":  450000,
+			"resource_count": map[string]int{
+				"pods": 15, "services": 8, "deployments": 6, "configmaps": 12,
+			},
+		},
+		{
+			"name":           "mimir-system",
+			"status":         "Active",
+			"age":            "15d",
+			"health_score":   98.5,
+			"ingestion_rate": 2500.0,
+			"active_series":  25000,
+			"resource_count": map[string]int{
+				"pods": 3, "services": 2, "deployments": 2, "configmaps": 4,
+			},
+		},
+	}
+
+	return map[string]interface{}{
+		"total":          len(mimirNamespaces),
+		"namespaces":     mimirNamespaces,
+		"data_source":    "synthetic",
+		"scan_type":      "comprehensive_mimir_infrastructure",
+		"last_scan":      time.Now().Format(time.RFC3339),
+		"mimir_specific": true,
+	}
+}
+
+// generateSyntheticArchitectureFlow generates synthetic architecture flow data
+func (s *Server) generateSyntheticArchitectureFlow(tenant string) map[string]interface{} {
+	return map[string]interface{}{
+		"flow": []map[string]interface{}{
+			{
+				"id":          "distributor",
+				"name":        "Mimir Distributor",
+				"type":        "ingestion",
+				"status":      "healthy",
+				"connections": []string{},
+				"metrics":     map[string]interface{}{"ingestion_rate": 12500, "active_series": 45000},
+			},
+		},
+		"components":  5,
+		"data_source": "synthetic",
+		"live_status": "simulated",
+		"tenant":      tenant,
+	}
+}
+
+// getTenantArchitectureFlow gets architecture flow for a specific tenant
+func (s *Server) getTenantArchitectureFlow(ctx context.Context, scanner *discovery.NamespaceScanner, tenant string) (map[string]interface{}, error) {
+	return map[string]interface{}{
+		"tenant":      tenant,
+		"data_source": "kubernetes",
+		"flow":        []map[string]interface{}{},
+	}, nil
+}
+
+// getOverallArchitectureFlow gets overall architecture flow
+func (s *Server) getOverallArchitectureFlow(ctx context.Context, scanner *discovery.NamespaceScanner) (map[string]interface{}, error) {
+	return map[string]interface{}{
+		"data_source": "kubernetes",
+		"flow":        []map[string]interface{}{},
+	}, nil
 }
