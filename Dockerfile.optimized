@@ -18,7 +18,7 @@ ARG TARGETARCH
 # -----------------------------------------------------------------------------
 # STAGE 1: UI Build Stage
 # -----------------------------------------------------------------------------
-FROM --platform=$BUILDPLATFORM node:18-alpine AS ui-builder
+FROM --platform=$BUILDPLATFORM node:24-alpine AS ui-builder
 
 # Set working directory
 WORKDIR /app/ui

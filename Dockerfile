@@ -1,5 +1,5 @@
 # UI Build stage
-FROM node:18-alpine AS ui-builder
+FROM node:24-alpine AS ui-builder
 
 # Set working directory for UI build
 WORKDIR /app/ui
