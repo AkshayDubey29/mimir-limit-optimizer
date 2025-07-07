@@ -10,7 +10,7 @@ controller:
 # Container image - Use latest stable release
 image:
   repository: ghcr.io/akshaydubey29/mimir-limit-optimizer
-  tag: "v3.0.2"
+  tag: "3.1.1"
   pullPolicy: IfNotPresent
 
 # Web UI Dashboard - ENABLED for monitoring
