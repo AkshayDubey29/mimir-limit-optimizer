@@ -72,7 +72,7 @@ RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build \
 # -----------------------------------------------------------------------------
 # STAGE 3: Runtime Stage (Minimal)
 # -----------------------------------------------------------------------------
-FROM --platform=$TARGETPLATFORM alpine:3.18 AS runtime
+FROM --platform=$TARGETPLATFORM alpine:3.22 AS runtime
 
 # Install ca-certificates and timezone data
 RUN apk --no-cache add ca-certificates tzdata && \
