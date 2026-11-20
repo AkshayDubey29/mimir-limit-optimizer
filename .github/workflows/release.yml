@@ -182,7 +182,7 @@ jobs:
         echo "Docker build should be triggered automatically by the tag: ${{ steps.new_version.outputs.tag }}"
         
     - name: Create GitHub Release
-      uses: softprops/action-gh-release@v1
+      uses: softprops/action-gh-release@v3
       with:
         tag_name: ${{ steps.new_version.outputs.tag }}
         name: Mimir Limit Optimizer ${{ steps.new_version.outputs.tag }}
