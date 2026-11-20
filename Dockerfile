@@ -17,7 +17,7 @@ COPY ui/ ./
 RUN npm run build
 
 # Go Build stage
-FROM golang:1.21-alpine AS builder
+FROM golang:1.27-alpine AS builder
 
 # Build arguments for metadata
 ARG VERSION=dev
